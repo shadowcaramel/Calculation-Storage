@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "calculation-storage"
+version = "0.1.0"
+description = "Reader tooling for a library of nuclear-calculation results"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "GPL-3.0-or-later" }
+dependencies = [
+    "pandas>=2.0.0",
+    "pyarrow>=10.0.0",
+    "pydantic>=2.0.0",
+    "Jinja2>=3.1.0",
+    "openpyxl>=3.1.0",
+]
+
+[project.optional-dependencies]
+serve = ["datasette>=0.64"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+results-library = "results_library.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["results_library*"]
+
+[tool.setuptools.package-data]
+results_library = [
+    "views/templates/*.html",
+    "views/assets/*",
+    "vendor/results_schema/*",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

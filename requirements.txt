@@ -1,0 +1,16 @@
+# Results library tooling (reader side).
+#
+# Kept separate from the pipeline's requirements on purpose: none of this needs
+# to be installed in a GPU training environment.
+
+# Catalog
+pandas>=2.0.0             # catalog table
+pyarrow>=10.0.0           # catalog.parquet
+pydantic>=2.0.0           # strict record validation in the lint pass (optional)
+
+# Views
+Jinja2>=3.1.0             # static HTML site
+openpyxl>=3.1.0           # Excel workbook view
+
+# Optional: instant browsable/filterable UI over catalog.db
+# datasette>=0.64

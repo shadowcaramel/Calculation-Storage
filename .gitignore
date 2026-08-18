@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Tests / tooling
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Library DATA never belongs in this repo. The shared folder
+# G:/Shared drives/Calculation results holds bundles and generated views.
+# These entries are a safety net in case someone points --library here.
+bundles/
+catalog.parquet
+catalog.db
+annotations.toml
+site/
+calculation_results.xlsx

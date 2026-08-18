@@ -1,0 +1,245 @@
+/* Static site styling. Deliberately dependency-free: the site must render from
+   a synced folder over file:// with no network access. */
+
+:root {
+  --bg: #fbfbfd;
+  --panel: #ffffff;
+  --ink: #1c1f24;
+  --muted: #667085;
+  --line: #e3e6ec;
+  --accent: #2d5fa8;
+  --accent-soft: #eaf0fa;
+  --probing: #8a8f98;
+  --working: #b06b00;
+  --published: #1f7a45;
+  --superseded: #98432f;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 1.5rem 4rem;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+header { padding: 1.25rem 0 0.5rem; }
+
+.crumbs { color: var(--muted); font-size: 0.9rem; }
+.crumbs a { color: var(--accent); text-decoration: none; }
+.crumbs a:hover { text-decoration: underline; }
+.crumbs .sep { margin: 0 0.45rem; opacity: 0.5; }
+
+main { max-width: 1180px; margin: 0 auto; }
+
+h1 { font-size: 1.55rem; margin: 0.6rem 0 1.1rem; }
+h2 { font-size: 1.1rem; margin: 0 0 0.2rem; }
+
+/* --- controls --------------------------------------------------------- */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.controls input[type="search"] {
+  flex: 1 1 320px;
+  min-width: 220px;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 0.95rem;
+}
+
+.controls label { color: var(--muted); font-size: 0.9rem; }
+.controls select { padding: 0.35rem; border: 1px solid var(--line); border-radius: 6px; }
+.count { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
+
+/* --- nucleus chips ---------------------------------------------------- */
+
+.nuclei { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.4rem; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.7rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+.chip:hover { border-color: var(--accent); background: var(--accent-soft); }
+.chip-count {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  font-size: 0.8rem;
+}
+
+/* --- tables ----------------------------------------------------------- */
+
+.table-block {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1rem 1.1rem 1.2rem;
+  margin-bottom: 1.6rem;
+}
+
+.table-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+}
+
+.actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+button.copy, a.button {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+}
+button.copy:hover, a.button:hover { border-color: var(--accent); color: var(--accent); }
+button.copy.copied { border-color: var(--published); color: var(--published); }
+
+/* The export strings are present in the page but never shown: copying reads
+   from here rather than from the rendered table. */
+.export-source { position: absolute; left: -9999px; width: 1px; height: 1px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+
+th, td {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+thead th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 2px solid var(--line);
+  white-space: nowrap;
+}
+
+thead th[data-sort] { cursor: pointer; user-select: none; }
+thead th[data-sort]:hover { color: var(--accent); }
+thead th.sorted-asc::after { content: " \2191"; }
+thead th.sorted-desc::after { content: " \2193"; }
+
+tbody tr:hover { background: #f6f8fc; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.setup { color: var(--muted); font-size: 0.85rem; }
+
+table.detail th { width: 34%; color: var(--muted); font-weight: 600; }
+
+.unit { color: var(--muted); font-size: 0.85em; }
+.hint { color: var(--muted); font-size: 0.85rem; }
+.empty { color: var(--muted); font-style: italic; }
+
+/* --- status ----------------------------------------------------------- */
+
+.status {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid currentColor;
+}
+.status-probing { color: var(--probing); }
+.status-working { color: var(--working); }
+.status-published { color: var(--published); }
+.status-superseded { color: var(--superseded); }
+
+/* --- detail page ------------------------------------------------------ */
+
+.value-headline { font-size: 1.15rem; margin: 0 0 1.2rem; }
+.value-headline strong { font-size: 1.3rem; }
+.value-headline .status { margin-left: 0.6rem; vertical-align: middle; }
+
+.notes {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1.5rem;
+}
+.notes p { margin: 0.35rem 0; }
+
+.tag {
+  display: inline-block;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+  margin-right: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.plots { display: flex; flex-wrap: wrap; gap: 1.2rem; margin-bottom: 1.6rem; }
+
+.plots figure {
+  margin: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.8rem;
+  max-width: 560px;
+}
+.plots img { max-width: 100%; height: auto; display: block; border-radius: 6px; }
+.plots figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 0.5rem; }
+.plots a { color: var(--accent); }
+.no-preview {
+  display: block;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--muted);
+  background: var(--bg);
+  border-radius: 6px;
+}
+
+ul.files { margin: 0.4rem 0 0.8rem; padding-left: 1.2rem; }
+ul.files a { color: var(--accent); }
+
+footer {
+  max-width: 1180px;
+  margin: 2.5rem auto 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+code {
+  background: #f0f2f6;
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+}

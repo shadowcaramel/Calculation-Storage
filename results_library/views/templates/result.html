@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}{{ row.title or row.id }}{% endblock %}
+
+{% block crumbs %}
+  <span class="sep">/</span><a href="{{ root }}nucleus/{{ nucleus_slug }}.html">{{ row.nucleus_label or row.nucleus }}</a>
+  <span class="sep">/</span><span>{{ row.observable }}</span>
+{% endblock %}
+
+{% block content %}
+<h1>{{ row.title or (row.nucleus_label ~ ' ' ~ (row.state_label or '') ~ ' ' ~ row.observable) }}</h1>
+
+<p class="value-headline">
+  {{ row.observable }} = <strong>{{ row.value_label or 'n/a' }}</strong>
+  {% if row.units %}<span class="unit">{{ row.units }}</span>{% endif %}
+  <span class="status status-{{ row.status }}">{{ row.status }}</span>
+</p>
+
+{% if row.note or row.outcome or row.tags %}
+<section class="notes">
+  {% if row.note %}<p><strong>Note.</strong> {{ row.note }}</p>{% endif %}
+  {% if row.outcome %}<p><strong>Outcome.</strong> {{ row.outcome }}</p>{% endif %}
+  {% if row.tags %}<p class="tags">{% for tag in row.tags.split('; ') %}<span class="tag">{{ tag }}</span>{% endfor %}</p>{% endif %}
+</section>
+{% endif %}
+
+{% if plots %}
+<section class="plots">
+  <h2>Plots</h2>
+  {% for plot in plots %}
+  <figure>
+    <a href="{{ plot.href }}" title="Open full size">
+      {% if plot.is_image %}<img src="{{ plot.href }}" alt="{{ plot.name }}">
+      {% else %}<span class="no-preview">{{ plot.name }}</span>{% endif %}
+    </a>
+    <figcaption>
+      {{ plot.name }}
+      {% if plot.data_href %}
+      &mdash; data:
+      <a href="{{ plot.data_href }}" download>{{ plot.data_name }}</a>
+      {% if plot.csv_href %}<a href="{{ plot.csv_href }}" download>CSV</a>{% endif %}
+      {% endif %}
+    </figcaption>
+  </figure>
+  {% endfor %}
+</section>
+{% else %}
+<p class="empty">No plots were captured for this result.</p>
+{% endif %}
+
+<section class="table-block">
+  <div class="table-head">
+    <h2>Value</h2>
+    <div class="actions">
+      <button type="button" class="copy" data-target="latex-detail">Copy LaTeX</button>
+      <button type="button" class="copy" data-target="tsv-detail">Copy TSV</button>
+    </div>
+  </div>
+  <textarea id="latex-detail" class="export-source" readonly>{{ exports.latex }}</textarea>
+  <textarea id="tsv-detail" class="export-source" readonly>{{ exports.tsv }}</textarea>
+
+  <table class="detail">
+    <tbody>
+      {% for key, value in stats %}
+      <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="table-block">
+  <h2>How it was produced</h2>
+  <table class="detail">
+    <tbody>
+      {% for key, value in provenance %}
+      <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+{% if siblings %}
+<section class="table-block">
+  <h2>Other variants of this result</h2>
+  <p class="hint">Same nucleus, state, and observable; different setup.</p>
+  <table class="results">
+    <thead><tr><th>Run</th><th>Setup</th><th>Value</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for sib in siblings %}
+      <tr>
+        <td>{{ sib.run_stamp }}</td>
+        <td class="setup">{{ sib.setup }}</td>
+        <td>{{ sib.value_label or '' }}</td>
+        <td><span class="status status-{{ sib.status }}">{{ sib.status }}</span></td>
+        <td>{% if sib.id != row.id %}<a href="{{ root }}results/{{ sib.page }}">open</a>{% else %}<em>this one</em>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="table-block">
+  <h2>Files</h2>
+  <ul class="files">
+    <li><a href="{{ bundle_href }}">bundle folder</a></li>
+    {% for artifact in artifacts %}
+    <li><a href="{{ artifact.href }}" download>{{ artifact.name }}</a> <span class="hint">{{ artifact.key }}</span></li>
+    {% endfor %}
+  </ul>
+  <p class="hint">Result id: <code>{{ row.id }}</code></p>
+  <p class="hint">To annotate this result, add a table keyed by that id to
+    <code>annotations.toml</code> in the library root, then rebuild.</p>
+</section>
+{% endblock %}

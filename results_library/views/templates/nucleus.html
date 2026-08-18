@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% from "macros.html" import table_block %}
+{% block title %}{{ nucleus }} results{% endblock %}
+
+{% block crumbs %}
+  <span class="sep">/</span><span>{{ nucleus_label }}</span>
+{% endblock %}
+
+{% block content %}
+<h1>{{ nucleus_label }}</h1>
+
+<section class="controls">
+  <input type="search" id="filter-text" placeholder="Filter states, observables, notes..." autocomplete="off">
+  <label><input type="checkbox" id="hide-probing" checked> hide probing</label>
+  <span id="row-count" class="count"></span>
+</section>
+
+{% for group in groups %}
+{{ table_block(group.rows, group.heading, group.table_id, root, group.exports) }}
+{% endfor %}
+{% endblock %}
