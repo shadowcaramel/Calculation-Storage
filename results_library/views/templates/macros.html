@@ -27,7 +27,7 @@
         <th data-sort="text">Observable</th>
         <th data-sort="number">Value</th>
         <th data-sort="number">N models</th>
-        <th data-sort="number">Nmax</th>
+        <th data-sort="number">{{ nmax_label }}</th>
         <th data-sort="text">Status</th>
         <th></th>
       </tr>
@@ -37,10 +37,10 @@
       <tr data-status="{{ row.status }}" data-search="{{ row.search_text }}">
         <td>{{ row.nucleus_label or row.nucleus }}</td>
         <td>{{ row.state_label or row.state_slug }}</td>
-        <td>{{ row.observable }}{% if row.units %} <span class="unit">({{ row.units }})</span>{% endif %}</td>
+        <td>{{ row.observable_label or row.observable }}{% if row.units %} <span class="unit">({{ row.units }})</span>{% endif %}</td>
         <td class="num" data-value="{{ row.median if row.median is not none else '' }}">{{ row.value_label or '' }}</td>
-        <td class="num" data-value="{{ row.N_models if row.N_models is not none else '' }}">{{ row.N_models if row.N_models is not none else '' }}</td>
-        <td class="num" data-value="{{ row.Nmax_final if row.Nmax_final is not none else '' }}">{{ row.Nmax_final if row.Nmax_final is not none else '' }}</td>
+        <td class="num" data-value="{{ row.N_models if row.N_models is not none else '' }}">{{ row.N_models | num }}</td>
+        <td class="num" data-value="{{ row.Nmax_final if row.Nmax_final is not none else '' }}">{{ row.Nmax_final | num }}</td>
         <td><span class="status status-{{ row.status }}">{{ row.status }}</span></td>
         <td><a href="{{ root }}results/{{ row.page }}">details</a></td>
       </tr>

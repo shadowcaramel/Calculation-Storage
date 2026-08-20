@@ -3,14 +3,14 @@
 
 {% block crumbs %}
   <span class="sep">/</span><a href="{{ root }}nucleus/{{ nucleus_slug }}.html">{{ row.nucleus_label or row.nucleus }}</a>
-  <span class="sep">/</span><span>{{ row.observable }}</span>
+  <span class="sep">/</span><span>{{ row.observable_label or row.observable }}</span>
 {% endblock %}
 
 {% block content %}
-<h1>{{ row.title or (row.nucleus_label ~ ' ' ~ (row.state_label or '') ~ ' ' ~ row.observable) }}</h1>
+<h1>{{ row.title or (row.nucleus_label ~ ' ' ~ (row.state_label or '') ~ ' ' ~ (row.observable_label or row.observable)) }}</h1>
 
 <p class="value-headline">
-  {{ row.observable }} = <strong>{{ row.value_label or 'n/a' }}</strong>
+  {{ row.observable_label or row.observable }} = <strong>{{ row.value_label or 'n/a' }}</strong>
   {% if row.units %}<span class="unit">{{ row.units }}</span>{% endif %}
   <span class="status status-{{ row.status }}">{{ row.status }}</span>
 </p>

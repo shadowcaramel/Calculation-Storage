@@ -161,6 +161,8 @@ def flatten_record(
     annotations: Dict[str, Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Turn one record into a single flat catalog row."""
+    from results_schema.labels import observable_unicode, setup_label
+
     record = scanned.data
     subject = record.get("subject") or {}
     observable = record.get("observable") or {}
@@ -184,6 +186,11 @@ def flatten_record(
         "subject_kind": subject.get("kind"),
         "observable": observable.get("name") or observable.get("slug"),
         "observable_latex": observable.get("latex"),
+        "observable_label": observable_unicode(
+            observable.get("name") or observable.get("slug"),
+            stored=observable.get("unicode"),
+            column_labels=record.get("column_labels"),
+        ),
         "units": observable.get("units"),
         "direction": observable.get("direction"),
     }
@@ -212,6 +219,9 @@ def flatten_record(
         if isinstance(limits, (list, tuple)) and len(limits) == 2:
             row[f"bounds_{column}_min"] = limits[0]
             row[f"bounds_{column}_max"] = limits[1]
+    row["setup_label"] = setup_label(
+        variant.get("bounds") or {}, record.get("column_labels")
+    )
 
     # Reference
     row["reference_nucleus"] = reference.get("nucleus")

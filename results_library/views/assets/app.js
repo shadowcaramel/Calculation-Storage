@@ -10,6 +10,37 @@
 (function () {
   "use strict";
 
+  // ---- theme -----------------------------------------------------------
+
+  var THEME_KEY = "results-theme";
+  var themeButton = document.getElementById("theme-toggle");
+
+  function systemPrefersDark() {
+    return (
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches
+    );
+  }
+
+  function activeTheme() {
+    var pinned = document.documentElement.getAttribute("data-theme");
+    if (pinned === "dark" || pinned === "light") return pinned;
+    return systemPrefersDark() ? "dark" : "light";
+  }
+
+  if (themeButton) {
+    themeButton.addEventListener("click", function () {
+      var next = activeTheme() === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      try {
+        localStorage.setItem(THEME_KEY, next);
+      } catch (err) {
+        // Private browsing or a file:// origin with storage disabled. The
+        // choice still applies to this page, it just will not persist.
+      }
+    });
+  }
+
   // ---- filtering -------------------------------------------------------
 
   var textInput = document.getElementById("filter-text");
@@ -47,10 +78,24 @@
       if (visible) shown += 1;
     });
 
+    var total = filterableRows().length;
     if (countLabel) {
-      var total = filterableRows().length;
       countLabel.textContent =
         shown === total ? total + " results" : shown + " of " + total + " results";
+    }
+
+    var emptyNote = document.getElementById("filter-empty");
+    if (emptyNote) {
+      if (shown === 0 && total > 0 && skipProbing) {
+        emptyNote.hidden = false;
+        emptyNote.textContent =
+          "All " + total + " results are probing and hidden. Uncheck “hide probing” to show them.";
+      } else if (shown === 0 && total > 0) {
+        emptyNote.hidden = false;
+        emptyNote.textContent = "No results match the current filter.";
+      } else {
+        emptyNote.hidden = true;
+      }
     }
   }
 

@@ -11,9 +11,12 @@
 
 <section class="controls">
   <input type="search" id="filter-text" placeholder="Filter states, observables, notes..." autocomplete="off">
-  <label><input type="checkbox" id="hide-probing" checked> hide probing</label>
+  <label title="Exploratory runs are kept but hidden once anything has been promoted">
+    <input type="checkbox" id="hide-probing"{% if hide_probing %} checked{% endif %}> hide probing
+  </label>
   <span id="row-count" class="count"></span>
 </section>
+<p id="filter-empty" class="empty" hidden></p>
 
 {% for group in groups %}
 {{ table_block(group.rows, group.heading, group.table_id, root, group.exports) }}

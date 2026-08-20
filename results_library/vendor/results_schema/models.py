@@ -232,6 +232,7 @@ class Observable(_Base):
     slug: str
     name: Optional[str] = None
     latex: Optional[str] = None
+    unicode: Optional[str] = None
     units: Optional[str] = None
     direction: Optional[Literal["up", "down"]] = None
 
@@ -325,6 +326,7 @@ class ResultRecord(_Base):
     status: Status = "probing"
     available: List[str] = Field(default_factory=list)
     artifacts: Dict[str, str] = Field(default_factory=dict)
+    column_labels: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _check_family(self) -> "ResultRecord":
@@ -351,6 +353,7 @@ class ResultRecord(_Base):
         provenance: Optional[Provenance] = None,
         available: Optional[List[str]] = None,
         artifacts: Optional[Mapping[str, str]] = None,
+        column_labels: Optional[Mapping[str, Mapping[str, Any]]] = None,
         status: Status = "probing",
     ) -> "ResultRecord":
         """Assemble a record, deriving ``id`` and ``family`` from the identity."""
@@ -371,6 +374,9 @@ class ResultRecord(_Base):
             status=status,
             available=list(available or []),
             artifacts=dict(artifacts or {}),
+            column_labels={
+                str(k): dict(v) for k, v in dict(column_labels or {}).items()
+            },
         )
 
     # -- serialisation -------------------------------------------------

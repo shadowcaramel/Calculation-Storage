@@ -4,14 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Calculation results{% endblock %}</title>
+{# Pin the stored theme before first paint, otherwise a dark-mode reader sees a
+   white flash on every page load. #}
+<script>
+(function () {
+  try {
+    var saved = localStorage.getItem("results-theme");
+    if (saved === "dark" || saved === "light") {
+      document.documentElement.setAttribute("data-theme", saved);
+    }
+  } catch (err) {}
+})();
+</script>
 <link rel="stylesheet" href="{{ root }}assets/style.css">
 </head>
 <body>
 <header>
-  <nav class="crumbs">
-    <a href="{{ root }}index.html">All results</a>
-    {%- block crumbs %}{% endblock %}
-  </nav>
+  <div class="bar">
+    <nav class="crumbs">
+      <a href="{{ root }}index.html">All results</a>
+      {%- block crumbs %}{% endblock %}
+    </nav>
+    <button type="button" class="theme-toggle" id="theme-toggle"
+            aria-label="Switch between light and dark appearance">
+      <span class="theme-to-dark">Dark</span>
+      <span class="theme-to-light">Light</span>
+    </button>
+  </div>
 </header>
 <main>
 {% block content %}{% endblock %}

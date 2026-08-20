@@ -20,6 +20,8 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from results_schema.labels import axis_unicode
+
 logger = logging.getLogger(__name__)
 
 WORKBOOK_FILENAME = "calculation_results.xlsx"
@@ -28,13 +30,13 @@ _MAX_SHEET_NAME = 31
 #: (column header, catalog key)
 _COLUMNS: tuple[tuple[str, str], ...] = (
     ("State", "state_label"),
-    ("Observable", "observable"),
+    ("Observable", "observable_label"),
     ("Units", "units"),
     ("median - Q1", "err_low"),
     ("median", "median"),
     ("Q3 - median", "err_high"),
     ("N models", "N_models"),
-    ("Nmax", "Nmax_final"),
+    (axis_unicode("Nmax"), "Nmax_final"),
     ("Status", "status"),
     ("Note", "note"),
     ("Outcome", "outcome"),
@@ -157,7 +159,12 @@ def _style_header(sheet, Font, Alignment) -> None:
 
 
 def _append_row(sheet, record, library_root: Path, get_column_letter) -> None:
-    values = [_clean(record.get(key)) for _, key in _COLUMNS]
+    values = []
+    for _, key in _COLUMNS:
+        value = _clean(record.get(key))
+        if key == "observable_label" and not value:
+            value = _clean(record.get("observable"))
+        values.append(value)
     sheet.append(values)
     row_index = sheet.max_row
 

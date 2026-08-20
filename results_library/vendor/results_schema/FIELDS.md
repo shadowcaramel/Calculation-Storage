@@ -39,6 +39,7 @@ Current version: **1**
 | `status` | 1 | | str | `probing` \| `working` \| `published` \| `superseded`. Written as `probing`; promotion happens in `annotations.toml`, which wins on conflict. |
 | `available` | 1 | | list[str] | Which artifact kinds actually exist, so views only offer real downloads. |
 | `artifacts` | 1 | | table | Artifact key to filename, relative to the bundle directory. |
+| `column_labels` | 1 | | table | Display forms for input columns and observables, copied from `[postprocessing.prediction_plots.labels]` at capture. Each entry has `display`, `unicode`, optional `latex` and `unit`. Views use these so HTML shows `ħΩ` rather than `hOmega`. Older records lack this table; the catalog then applies the schema defaults. |
 
 ## `subject`
 
@@ -92,6 +93,7 @@ collide, so the reference feeds both the observable slug and `variant_hash`.
 | `slug` | 1 | | str | Path-safe name. `B(E2)` becomes `BE2`, `Mn/Mp` becomes `Mn_over_Mp`. |
 | `name` | 1 | | str | Name as used in the data, e.g. `Erel`. |
 | `latex` | 1 | | str | Math-mode label for tables and figures. |
+| `unicode` | 1 | | str | Plain-text display form for HTML and Excel, e.g. `Eᵣₑₗ`. Copied from the identity registry or the plot-label table. |
 | `units` | 1 | | str | Physical units, empty string for dimensionless. |
 | `direction` | 1 | | str | `up` or `down` for transition strengths. B(E2) up and down differ by `(2J_f+1)/(2J_i+1)`, so an unlabelled value is ambiguous. |
 
@@ -106,7 +108,7 @@ collide, so the reference feeds both the observable slug and `variant_hash`.
 | `N_models` | 1 | | int | Models surviving filtering and contributing to the statistics. |
 | `Nmax_final` | 1 | | float | Nmax at which the extrapolated value is read off. |
 | `uncertainty_method` | 1 | | str | How the uncertainty was defined, e.g. `IQR`. |
-| `homega_aggregation` | 1 | | str | How each model's hOmega dependence was collapsed, e.g. `min`, `median`. |
+| `homega_aggregation` | 1 | | str | How each model's ħΩ dependence was collapsed, e.g. `min`, `median`. |
 | `KDE_mode` | 1 | | float | Mode of the kernel density estimate, when KDE is enabled. |
 | `HDR_low`, `HDR_high` | 1 | | float | Highest-density region bounds, when enabled. |
 

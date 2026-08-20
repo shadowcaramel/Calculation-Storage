@@ -14,12 +14,42 @@ Stdlib only, so the early config check can run without pydantic installed.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional
+from typing import Any, Iterable, Mapping, Optional
 
 from results_schema.nuclides import parse_nuclide
 from results_schema.slugs import parity_sign, render_doubled_label
 
 _PARITY_UNICODE = {"+": "\u207a", "-": "\u207b"}
+
+# Axis / column display forms. These match the pipeline plot-label registry
+# (``[postprocessing.prediction_plots.labels.*]``): matplotlib gets ``mathtext``,
+# the HTML page gets Unicode, Copy LaTeX gets the math-mode string.
+# A captured record may overlay these via ``column_labels``.
+# Defaults match ``[postprocessing.prediction_plots.labels.*]`` in config.toml.
+# HTML/Excel use Unicode (the site is opened as local files, with no MathJax).
+# Copy LaTeX / .tex exports use the math-mode form.
+_AXIS_UNICODE = {
+    "hOmega": "\u0127\u03a9",  # ħΩ
+    "Nmax": "N\u2098\u2090\u2093",  # Nₘₐₓ
+    "Erel": "E\u1d63\u2091\u2097",  # Eᵣₑₗ
+    "Eexc": "E\u2091\u2093c",  # Eₑₓc (no subscript c)
+    "Eabs": "E_abs",
+    "RMS": "R\u1d63\u2098\u209b",  # Rᵣₘₛ
+    "rp": "r\u209a",  # rₚ
+    "rpp": "r\u209a\u209a",  # rₚₚ
+    "BSR": "BSR",
+}
+_AXIS_LATEX = {
+    "hOmega": r"$\hbar\Omega$",
+    "Nmax": r"$N_{\max}$",
+    "Erel": r"$E_{\mathrm{rel}}$",
+    "Eexc": r"$E_{\mathrm{exc}}$",
+    "Eabs": r"$E_{\mathrm{abs}}$",
+    "RMS": r"$R_{\mathrm{rms}}$",
+    "rp": r"$r_p$",
+    "rpp": r"$r_{\mathrm{pp}}$",
+    "BSR": r"$\mathrm{BSR}$",
+}
 
 
 def _index_suffix(index: Any) -> str:
@@ -180,3 +210,103 @@ def format_value_with_uncertainty(
         f"{median:.{precision}f}^{{+{err_high:.{precision}f}}}"
         f"_{{-{err_low:.{precision}f}}}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Input-column / axis labels (hOmega, Nmax, ...)
+# ---------------------------------------------------------------------------
+
+def column_label_from_plot_entry(
+    name: str,
+    entry: Optional[Mapping[str, Any]] = None,
+) -> dict[str, str]:
+    """Build the stored label block for one column from a plot-label table."""
+    entry = entry or {}
+    unicode = (
+        entry.get("unicode")
+        or _AXIS_UNICODE.get(name)
+        or entry.get("display")
+        or name
+    )
+    latex = entry.get("mathtext") or entry.get("latex") or _AXIS_LATEX.get(name)
+    display = entry.get("display") or name
+    unit = entry.get("unit") or entry.get("units") or ""
+    out = {"display": str(display), "unicode": str(unicode)}
+    if latex:
+        out["latex"] = str(latex)
+    if unit:
+        out["unit"] = str(unit)
+    return out
+
+
+def axis_unicode(
+    name: str,
+    column_labels: Optional[Mapping[str, Any]] = None,
+) -> str:
+    """HTML/Excel form of an input column: ``hOmega -> ħΩ``."""
+    if column_labels:
+        entry = column_labels.get(name) or {}
+        if isinstance(entry, Mapping) and entry.get("unicode"):
+            return str(entry["unicode"])
+    return _AXIS_UNICODE.get(name, name)
+
+
+def observable_unicode(
+    name: Optional[str],
+    *,
+    stored: Optional[str] = None,
+    column_labels: Optional[Mapping[str, Any]] = None,
+) -> str:
+    """HTML/Excel form of an observable: ``Erel -> Eᵣₑₗ``."""
+    if stored:
+        return str(stored)
+    if not name:
+        return ""
+    return axis_unicode(str(name), column_labels)
+
+
+def collect_column_labels(
+    plot_tables: Optional[Mapping[str, Any]] = None,
+    extra_names: Optional[Iterable[str]] = None,
+) -> dict[str, dict[str, str]]:
+    """Merge a plot-label table with defaults for every named column."""
+    tables = dict(plot_tables or {})
+    names = {str(key) for key in tables}
+    names.update(str(name) for name in (extra_names or []) if name)
+    return {
+        name: column_label_from_plot_entry(name, tables.get(name) or {})
+        for name in sorted(names)
+    }
+
+
+def axis_latex(
+    name: str,
+    column_labels: Optional[Mapping[str, Any]] = None,
+    wrap: bool = True,
+) -> str:
+    """Math-mode form of an input column: ``hOmega -> $\\hbar\\Omega$``."""
+    if column_labels:
+        entry = column_labels.get(name) or {}
+        if isinstance(entry, Mapping) and entry.get("latex"):
+            text = str(entry["latex"])
+            if wrap and not (text.startswith("$") and text.endswith("$")):
+                return f"${text}$"
+            return text
+    text = _AXIS_LATEX.get(name)
+    if text:
+        return text if wrap else text.strip("$")
+    return name
+
+
+def setup_label(
+    bounds: Mapping[str, Any],
+    column_labels: Optional[Mapping[str, Any]] = None,
+) -> str:
+    """``ħΩ [8, 50]; Nmax [4, 18]`` from a variant bounds table."""
+    parts: list[str] = []
+    for column, limits in bounds.items():
+        if isinstance(limits, (list, tuple)) and len(limits) == 2:
+            parts.append(
+                f"{axis_unicode(str(column), column_labels)} [{limits[0]}, {limits[1]}]"
+            )
+    return "; ".join(parts)

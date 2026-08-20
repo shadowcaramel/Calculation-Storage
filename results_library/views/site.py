@@ -33,22 +33,26 @@ logger = logging.getLogger(__name__)
 SITE_DIRNAME = "site"
 _IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 
-#: Columns shown on a detail page, in order, with display names.
-_STAT_FIELDS = (
-    ("median", "Median (central value)"),
-    ("err_low", "Uncertainty low (median - Q1)"),
-    ("err_high", "Uncertainty high (Q3 - median)"),
-    ("Q1", "Q1"),
-    ("Q3", "Q3"),
-    ("IQR", "IQR"),
-    ("N_models", "Models used"),
-    ("Nmax_final", "Nmax final"),
-    ("uncertainty_method", "Uncertainty method"),
-    ("homega_aggregation", "hOmega aggregation"),
-    ("KDE_mode", "KDE mode"),
-    ("HDR_low", "HDR low"),
-    ("HDR_high", "HDR high"),
-)
+def _stat_fields() -> tuple[tuple[str, str], ...]:
+    from results_schema.labels import axis_unicode
+
+    nmax = axis_unicode("Nmax")
+    hw = axis_unicode("hOmega")
+    return (
+        ("median", "Median (central value)"),
+        ("err_low", "Uncertainty low (median - Q1)"),
+        ("err_high", "Uncertainty high (Q3 - median)"),
+        ("Q1", "Q1"),
+        ("Q3", "Q3"),
+        ("IQR", "IQR"),
+        ("N_models", "Models used"),
+        ("Nmax_final", f"{nmax} final"),
+        ("uncertainty_method", "Uncertainty method"),
+        ("homega_aggregation", f"{hw} aggregation"),
+        ("KDE_mode", "KDE mode"),
+        ("HDR_low", "HDR low"),
+        ("HDR_high", "HDR high"),
+    )
 
 _PROVENANCE_FIELDS = (
     ("run_stamp", "Run"),
@@ -86,6 +90,22 @@ def _clean(value: Any) -> Any:
     return value
 
 
+def _format_number(value: Any) -> str:
+    """Readable form of a stored number.
+
+    Records keep full float precision on purpose, but a table showing
+    ``1.588239073753357`` is unreadable, and an integral count rendered as
+    ``300.0`` looks like a bug. Display rounds to the same three decimals the
+    value headline uses; the raw number stays in ``result.json``.
+    """
+    value = _clean(value)
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return str(int(value)) if value.is_integer() else f"{value:.3f}"
+    return str(value)
+
+
 def _page_name(result_id: str) -> str:
     """Flat filename for a detail page, so link depth is always the same."""
     return result_id.replace("/", "__") + ".html"
@@ -103,8 +123,9 @@ def _row_dict(record: Mapping[str, Any]) -> Dict[str, Any]:
         str(row.get(key) or "")
         for key in (
             "nucleus", "nucleus_label", "state_label", "state_slug", "observable",
-            "observable_slug", "status", "title", "note", "outcome", "tags",
-            "selection_set", "config_name", "run_stamp", "id",
+            "observable_label", "observable_slug", "status", "title", "note",
+            "outcome", "tags", "selection_set", "config_name", "run_stamp", "id",
+            "setup_label",
         )
     )
     return row
@@ -130,15 +151,31 @@ def _href(from_page: str, to_target: str) -> str:
     return posixpath.relpath(to_target.replace("\\", "/"), start=start)
 
 
+def _hide_probing_default(rows: Iterable[Mapping[str, Any]]) -> bool:
+    """Hide probing rows only once something has been promoted.
+
+    A new library is all ``probing``. Checking the box by default then leaves
+    an empty table next to a chip that says there are results, which looks
+    broken. Once any result is ``working`` / ``published`` / ``superseded``,
+    hide the exploratory ones again so they do not bury the keepers.
+    """
+    return any((row.get("status") or "probing") != "probing" for row in rows)
+
+
 def _setup_summary(row: Mapping[str, Any]) -> str:
-    parts: List[str] = []
-    for key, value in row.items():
-        if key.startswith("bounds_") and key.endswith("_min"):
-            column = key[len("bounds_"): -len("_min")]
-            low = _clean(value)
-            high = _clean(row.get(f"bounds_{column}_max"))
-            if low is not None or high is not None:
-                parts.append(f"{column} [{low}, {high}]")
+    from results_schema.labels import axis_unicode
+
+    if row.get("setup_label"):
+        parts: List[str] = [str(row["setup_label"])]
+    else:
+        parts = []
+        for key, value in row.items():
+            if key.startswith("bounds_") and key.endswith("_min"):
+                column = key[len("bounds_"): -len("_min")]
+                low = _clean(value)
+                high = _clean(row.get(f"bounds_{column}_max"))
+                if low is not None or high is not None:
+                    parts.append(f"{axis_unicode(column)} [{low}, {high}]")
     if row.get("selection_set"):
         parts.append(f"selection {row['selection_set']}")
     return "; ".join(parts)
@@ -164,12 +201,17 @@ class SiteBuilder:
                 "requirements: pip install -r requirements.txt"
             ) from exc
 
-        return Environment(
+        env = Environment(
             loader=FileSystemLoader(str(Path(__file__).parent / "templates")),
             autoescape=select_autoescape(["html"]),
             trim_blocks=True,
             lstrip_blocks=True,
         )
+        from results_schema.labels import axis_unicode
+
+        env.globals["nmax_label"] = axis_unicode("Nmax")
+        env.filters["num"] = _format_number
+        return env
 
     # -- build ---------------------------------------------------------
 
@@ -178,7 +220,7 @@ class SiteBuilder:
         environment = self._environment()
 
         if self.site_root.exists():
-            shutil.rmtree(self.site_root)
+            shutil.rmtree(self.site_root, ignore_errors=True)
         self.site_root.mkdir(parents=True, exist_ok=True)
 
         self._copy_assets()
@@ -199,8 +241,12 @@ class SiteBuilder:
         target = self.site_root / "assets"
         target.mkdir(parents=True, exist_ok=True)
         for asset in source.iterdir():
-            if asset.is_file():
-                shutil.copy2(asset, target / asset.name)
+            if not asset.is_file():
+                continue
+            # read/write rather than copy2: Google Drive often fails CopyFile2
+            # with WinError 3 right after the destination folder is created.
+            dest = target / asset.name
+            dest.write_bytes(asset.read_bytes())
 
     def _write_exports(self, rows: List[Dict[str, Any]]) -> None:
         """Downloadable table exports, generated from catalog values."""
@@ -243,6 +289,7 @@ class SiteBuilder:
             rows=rows,
             nuclei=nuclei,
             statuses=STATUSES,
+            hide_probing=_hide_probing_default(rows),
             exports=_exports(rows),
             generated_at=self.generated_at,
             record_count=len(rows),
@@ -282,6 +329,7 @@ class SiteBuilder:
                 nucleus_label=nucleus_rows[0].get("nucleus_label") or nucleus,
                 groups=groups,
                 statuses=STATUSES,
+                hide_probing=_hide_probing_default(nucleus_rows),
                 generated_at=self.generated_at,
                 record_count=len(nucleus_rows),
             )
@@ -301,8 +349,8 @@ class SiteBuilder:
 
             plots, artifacts = self._collect_artifacts(row, page_path)
             stats = [
-                (label, row.get(key))
-                for key, label in _STAT_FIELDS
+                (label, _format_number(row.get(key)))
+                for key, label in _stat_fields()
                 if row.get(key) is not None
             ]
             provenance = [

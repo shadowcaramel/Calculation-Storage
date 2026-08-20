@@ -304,6 +304,8 @@ class TestCatalog:
         assert "2.639" in working["value_label"]
         assert working["artifact_histogram_plot"].endswith("histogram.png")
         assert probing["status"].eq("probing").all()
+        assert working["observable_label"] == "E\u1d63\u2091\u2097"
+        assert "\u0127\u03a9" in working["setup_label"]
 
         transition = frame[frame["nucleus"] == "16C"].iloc[0]
         assert transition["subject_kind"] == "transition"
@@ -467,6 +469,8 @@ class TestSite:
 
         index = (site / "index.html").read_text(encoding="utf-8")
         assert "hide probing" in index
+        # Fixture has a curated (working) 6He result, so probing stays hidden.
+        assert 'id="hide-probing" checked' in index
         assert "Copy LaTeX" in index
         assert "Copy TSV" in index
         assert (site / "assets" / "app.js").exists()
@@ -484,6 +488,8 @@ class TestSite:
         # From site/results/*.html the library root is two levels up, not three.
         assert 'src="../../bundles/' in html
         assert "../../../bundles/" not in html
+        assert "E\u1d63\u2091\u2097" in html
+        assert "\u0127\u03a9 aggregation" in html
 
     def test_empty_catalog_still_renders_index(self, tmp_path):
         pytest.importorskip("jinja2")
@@ -494,6 +500,21 @@ class TestSite:
         site = build_site(library, pd.DataFrame())
         html = (site / "index.html").read_text(encoding="utf-8")
         assert "No results yet" in html
+
+    def test_all_probing_library_shows_rows_by_default(self, tmp_path):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        library = tmp_path / "probing-only"
+        library.mkdir()
+        _place(library, _he6_record("only"))
+        frame, _ = build_catalog(library)
+        site = build_site(library, frame)
+        html = (site / "index.html").read_text(encoding="utf-8")
+        assert 'id="hide-probing"' in html
+        assert 'id="hide-probing" checked' not in html
+        assert "(0⁺, T=1)(2)" in html or "(0" in html
+        assert "E\u1d63\u2091\u2097" in html
 
 
 # ---------------------------------------------------------------------------

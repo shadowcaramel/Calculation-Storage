@@ -13,11 +13,12 @@
       {% for status in statuses %}<option value="{{ status }}">{{ status }}</option>{% endfor %}
     </select>
   </label>
-  <label title="Exploratory runs are kept but hidden by default">
-    <input type="checkbox" id="hide-probing" checked> hide probing
+  <label title="Exploratory runs are kept but hidden once anything has been promoted">
+    <input type="checkbox" id="hide-probing"{% if hide_probing %} checked{% endif %}> hide probing
   </label>
   <span id="row-count" class="count"></span>
 </section>
+<p id="filter-empty" class="empty" hidden></p>
 
 {% if nuclei %}
 <section class="nuclei">

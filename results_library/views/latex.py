@@ -82,7 +82,7 @@ def cell_value(row: Mapping[str, Any], column: str, for_latex: bool) -> str:
     if column == "observable":
         if for_latex and row.get("observable_latex"):
             return _text(row.get("observable_latex"))
-        return _text(row.get("observable"))
+        return _text(row.get("observable_label") or row.get("observable"))
 
     if column == "value":
         if for_latex:
