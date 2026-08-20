@@ -1,7 +1,7 @@
 """
 Command line interface for the results library.
 
-    python -m results_library.cli build   --library "G:/Shared drives/Calculation results"
+    python -m results_library.cli build   --library "G:/Shared drives/Calculation results/Calculation storage"
     python -m results_library.cli catalog --library ...
     python -m results_library.cli site    --library ...
     python -m results_library.cli excel   --library ...
@@ -58,7 +58,7 @@ def resolve_library(args: argparse.Namespace) -> Path:
     if not candidate:
         print(
             "No library path given. Use one of:\n"
-            "  --library \"G:/Shared drives/Calculation results\"\n"
+            "  --library \"G:/Shared drives/Calculation results/Calculation storage\"\n"
             "  --config path/to/config.toml   (reads [results_library].path)\n"
             f"  set {ENV_VAR} in the environment",
             file=sys.stderr,

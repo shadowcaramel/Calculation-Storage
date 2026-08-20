@@ -22,7 +22,7 @@ htmlcov/
 Thumbs.db
 
 # Library DATA never belongs in this repo. The shared folder
-# G:/Shared drives/Calculation results holds bundles and generated views.
+# G:/Shared drives/Calculation results/Calculation storage holds bundles and generated views.
 # These entries are a safety net in case someone points --library here.
 bundles/
 catalog.parquet

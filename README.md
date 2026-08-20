@@ -5,7 +5,7 @@ folder of result bundles into a catalog and three views (static site, Excel
 workbook, Datasette).
 
 This repository does **not** hold the calculation data. Bundles live in a
-Drive-synced folder (`G:\Shared drives\Calculation results`). The ensemble
+Drive-synced folder (`G:\Shared drives\Calculation results\Calculation storage`). The ensemble
 pipeline that *writes* those bundles lives in a separate repository. The two
 share an on-disk schema (`schema_version` + `FIELDS.md`), not a Python import.
 
@@ -57,7 +57,7 @@ catalog build reads thousands of small JSON files.
 ## Everyday use
 
 ```bash
-python -m results_library.cli build --library "G:/Shared drives/Calculation results"
+python -m results_library.cli build --library "G:/Shared drives/Calculation results/Calculation storage"
 ```
 
 That rebuilds the catalog, the site, and the workbook **from scratch**. There is
@@ -67,8 +67,8 @@ thousand results. Open `site/index.html` afterwards.
 To avoid retyping the path, set it once:
 
 ```bash
-set RESULTS_LIBRARY=G:/Shared drives/Calculation results     # Windows
-export RESULTS_LIBRARY="G:/Shared drives/Calculation results"  # POSIX
+set RESULTS_LIBRARY=G:/Shared drives/Calculation results/Calculation storage     # Windows
+export RESULTS_LIBRARY="G:/Shared drives/Calculation results/Calculation storage"  # POSIX
 ```
 
 or point at the pipeline config, which already stores the same path:
@@ -136,7 +136,7 @@ The catalog is one row per result:
 
 ```python
 import pandas as pd
-catalog = pd.read_parquet(r"G:/Shared drives/Calculation results/catalog.parquet")
+catalog = pd.read_parquet(r"G:/Shared drives/Calculation results/Calculation storage/catalog.parquet")
 
 catalog[catalog.nucleus == "6He"].sort_values("run_stamp", ascending=False)
 
