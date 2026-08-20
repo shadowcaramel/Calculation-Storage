@@ -1,8 +1,20 @@
-{# Shared table rendering.
+{# Shared markup.
 
    The Copy LaTeX / Copy TSV buttons carry pre-generated strings built from the
    catalog values, so pasting never depends on the browser's idea of what a
-   selected table contains. #}
+   selected table contains.
+
+   help_tip is the hover “?” used on field labels. Reuse it for annotations
+   (note, outcome, status, …) rather than inventing a second pattern. #}
+
+{% macro help_tip(text) %}
+{%- if text -%}
+<span class="help">
+  <button type="button" class="help-mark" aria-label="About this field">?</button>
+  <span class="help-bubble" role="tooltip">{{ text }}</span>
+</span>
+{%- endif -%}
+{% endmacro %}
 
 {% macro table_block(rows, heading, table_id, root, exports) %}
 <section class="table-block">

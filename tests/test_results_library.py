@@ -490,6 +490,8 @@ class TestSite:
         assert "../../../bundles/" not in html
         assert "E\u1d63\u2091\u2097" in html
         assert "\u0127\u03a9 aggregation" in html
+        assert "Fingerprint of the setup" in html
+        assert "help-mark" in html
 
     def test_empty_catalog_still_renders_index(self, tmp_path):
         pytest.importorskip("jinja2")

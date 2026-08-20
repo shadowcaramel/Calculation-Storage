@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import help_tip %}
 {% block title %}{{ row.title or row.id }}{% endblock %}
 
 {% block crumbs %}
@@ -71,8 +72,11 @@
   <h2>How it was produced</h2>
   <table class="detail">
     <tbody>
-      {% for key, value in provenance %}
-      <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+      {% for key, value, hint in provenance %}
+      <tr>
+        <th>{{ key }}{{ help_tip(hint) }}</th>
+        <td>{{ value }}</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>

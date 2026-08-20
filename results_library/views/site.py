@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import posixpath
 import shutil
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional
@@ -72,6 +73,14 @@ _PROVENANCE_FIELDS = (
     ("schema_version", "Schema version"),
     ("migrations_applied", "Migrations applied"),
 )
+
+#: Optional muted note under a provenance value. Keys match ``_PROVENANCE_FIELDS``.
+_PROVENANCE_HINTS = {
+    "variant_hash": (
+        "Fingerprint of the setup (bounds, filters, selection, reference "
+        "convention), not of this run. Identical setups share it."
+    ),
+}
 
 
 def _clean(value: Any) -> Any:
@@ -239,14 +248,21 @@ class SiteBuilder:
     def _copy_assets(self) -> None:
         source = Path(__file__).parent / "assets"
         target = self.site_root / "assets"
-        target.mkdir(parents=True, exist_ok=True)
-        for asset in source.iterdir():
-            if not asset.is_file():
-                continue
-            # read/write rather than copy2: Google Drive often fails CopyFile2
-            # with WinError 3 right after the destination folder is created.
-            dest = target / asset.name
-            dest.write_bytes(asset.read_bytes())
+        last_error: Optional[OSError] = None
+        for attempt in range(6):
+            try:
+                # Drive can finish deleting ``site/`` *after* we recreate it.
+                target.mkdir(parents=True, exist_ok=True)
+                for asset in source.iterdir():
+                    if not asset.is_file():
+                        continue
+                    dest = target / asset.name
+                    dest.write_bytes(asset.read_bytes())
+                return
+            except OSError as exc:
+                last_error = exc
+                time.sleep(0.4 * (attempt + 1))
+        raise RuntimeError(f"Could not copy site assets to {target}") from last_error
 
     def _write_exports(self, rows: List[Dict[str, Any]]) -> None:
         """Downloadable table exports, generated from catalog values."""
@@ -354,7 +370,7 @@ class SiteBuilder:
                 if row.get(key) is not None
             ]
             provenance = [
-                (label, row.get(key))
+                (label, row.get(key), _PROVENANCE_HINTS.get(key))
                 for key, label in _PROVENANCE_FIELDS
                 if row.get(key) not in (None, "")
             ]
