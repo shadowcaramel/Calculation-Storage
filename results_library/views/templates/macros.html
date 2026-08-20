@@ -5,7 +5,22 @@
    selected table contains.
 
    help_tip is the hover “?” used on field labels. Reuse it for annotations
-   (note, outcome, status, …) rather than inventing a second pattern. #}
+   (note, outcome, status, …) rather than inventing a second pattern.
+
+   tex renders stored LaTeX with the vendored KaTeX. The Unicode fallback is the
+   element's own text, so a page still reads correctly before (or without) the
+   script; app.js replaces it in place. Sorting reads data-value, because typeset
+   math has no useful textContent. #}
+
+{% macro tex(latex, fallback) %}
+{%- set body = latex | strip_dollars -%}
+{%- set plain = fallback or body -%}
+{%- if body -%}
+<span class="tex" data-tex="{{ body }}">{{ plain }}</span>
+{%- else -%}
+{{ plain or '' }}
+{%- endif -%}
+{% endmacro %}
 
 {% macro help_tip(text) %}
 {%- if text -%}
@@ -16,10 +31,10 @@
 {%- endif -%}
 {% endmacro %}
 
-{% macro table_block(rows, heading, table_id, root, exports) %}
+{% macro table_block(rows, heading, table_id, root, exports, heading_latex=None) %}
 <section class="table-block">
   <div class="table-head">
-    <h2>{{ heading }}</h2>
+    <h2>{{ tex(heading_latex, heading) }}</h2>
     <div class="actions">
       <button type="button" class="copy" data-target="latex-{{ table_id }}">Copy LaTeX</button>
       <button type="button" class="copy" data-target="tsv-{{ table_id }}">Copy TSV</button>
@@ -39,7 +54,7 @@
         <th data-sort="text">Observable</th>
         <th data-sort="number">Value</th>
         <th data-sort="number">N models</th>
-        <th data-sort="number">{{ nmax_label }}</th>
+        <th data-sort="number">{{ tex(nmax_latex, nmax_label) }}</th>
         <th data-sort="text">Status</th>
         <th></th>
       </tr>
@@ -48,9 +63,9 @@
       {% for row in rows %}
       <tr data-status="{{ row.status }}" data-search="{{ row.search_text }}">
         <td>{{ row.nucleus_label or row.nucleus }}</td>
-        <td>{{ row.state_label or row.state_slug }}</td>
-        <td>{{ row.observable_label or row.observable }}{% if row.units %} <span class="unit">({{ row.units }})</span>{% endif %}</td>
-        <td class="num" data-value="{{ row.median if row.median is not none else '' }}">{{ row.value_label or '' }}</td>
+        <td data-value="{{ row.state_label or row.state_slug }}">{{ tex(row.state_latex, row.state_label or row.state_slug) }}</td>
+        <td data-value="{{ row.observable_label or row.observable }}">{{ tex(row.observable_latex, row.observable_label or row.observable) }}{% if row.units %} <span class="unit">({{ row.units }})</span>{% endif %}</td>
+        <td class="num" data-value="{{ row.median if row.median is not none else '' }}">{{ tex(row.value_latex, row.value_label) }}</td>
         <td class="num" data-value="{{ row.N_models if row.N_models is not none else '' }}">{{ row.N_models | num }}</td>
         <td class="num" data-value="{{ row.Nmax_final if row.Nmax_final is not none else '' }}">{{ row.Nmax_final | num }}</td>
         <td><span class="status status-{{ row.status }}">{{ row.status }}</span></td>

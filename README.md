@@ -112,11 +112,22 @@ main reason keeping probing runs is worth anything.
 The site hides `probing` results by default, and the workbook omits them unless
 you pass `--include-probing`.
 
+## Typeset formulas
+
+States, observables, values, and the axis names are typeset in the browser by
+KaTeX, which is shipped inside the site under `assets/katex/`. Formulas use the
+same Inter face as the surrounding page (Computer Modern is not loaded for
+letters and digits). A collaborator opens `site/index.html` from the synced
+folder and gets real math: nothing to install, no network. Where the script
+does not run, each formula falls back to its Unicode form (`Eᵣₑₗ`, `ħΩ`,
+`Nₘₐₓ`), which is also what Excel, CSV, and TSV show.
+
 ## Copying tables into LaTeX
 
 Every table on the site has **Copy LaTeX** and **Copy TSV** buttons plus CSV and
 `.tex` downloads. These strings are generated from the catalog values, not
-scraped from the rendered HTML, which is why pasting them is reliable.
+scraped from the rendered HTML, which is why pasting them is reliable. Typesetting
+never touches them.
 
 The asymmetric-uncertainty form is assembled for you:
 

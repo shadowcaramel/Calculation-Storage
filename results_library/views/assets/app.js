@@ -41,6 +41,38 @@
     });
   }
 
+  // ---- math ------------------------------------------------------------
+
+  /* Typeset only the spans the templates marked, one call each.
+   *
+   * Auto-render over document.body is deliberately avoided: the page carries
+   * hidden textareas holding the Copy LaTeX / Copy TSV strings, and typesetting
+   * those would rewrite the paste buffer into markup.
+   *
+   * The span's own text is the Unicode fallback, so a page read without this
+   * script (or with katex.min.js missing) still names its observables. */
+  function typesetMath() {
+    if (typeof window.katex === "undefined") return;
+    document.querySelectorAll("span.tex[data-tex]").forEach(function (node) {
+      var source = node.getAttribute("data-tex");
+      if (!source) return;
+      try {
+        window.katex.render(source, node, {
+          throwOnError: false,
+          displayMode: false
+        });
+      } catch (err) {
+        // Malformed stored LaTeX: keep the fallback rather than an error box.
+      }
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", typesetMath);
+  } else {
+    typesetMath();
+  }
+
   // ---- filtering -------------------------------------------------------
 
   var textInput = document.getElementById("filter-text");
@@ -105,15 +137,18 @@
 
   // ---- sorting ---------------------------------------------------------
 
+  /* data-value carries the sortable form. It is what typeset cells have to be
+   * ordered by: once KaTeX has run, textContent is glyph markup plus a MathML
+   * copy of the source, which sorts by nothing meaningful. */
   function cellSortValue(row, index, kind) {
     var cell = row.cells[index];
     if (!cell) return kind === "number" ? Number.NEGATIVE_INFINITY : "";
+    var raw = cell.getAttribute("data-value");
     if (kind === "number") {
-      var raw = cell.getAttribute("data-value");
       var value = parseFloat(raw === null ? cell.textContent : raw);
       return isNaN(value) ? Number.NEGATIVE_INFINITY : value;
     }
-    return cell.textContent.trim().toLowerCase();
+    return (raw === null ? cell.textContent : raw).trim().toLowerCase();
   }
 
   document.querySelectorAll("table thead th[data-sort]").forEach(function (header) {

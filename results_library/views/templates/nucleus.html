@@ -19,6 +19,6 @@
 <p id="filter-empty" class="empty" hidden></p>
 
 {% for group in groups %}
-{{ table_block(group.rows, group.heading, group.table_id, root, group.exports) }}
+{{ table_block(group.rows, group.heading, group.table_id, root, group.exports, group.heading_latex) }}
 {% endfor %}
 {% endblock %}

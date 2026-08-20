@@ -493,6 +493,37 @@ class TestSite:
         assert "Fingerprint of the setup" in html
         assert "help-mark" in html
 
+    def test_math_is_typeset_from_stored_latex(self, library):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        frame, _ = build_catalog(library)
+        site = build_site(library, frame)
+
+        # Vendored, so a collaborator opening the folder needs nothing installed.
+        assert (site / "assets" / "katex" / "katex.min.js").exists()
+        assert (site / "assets" / "katex" / "katex.min.css").exists()
+        assert (site / "assets" / "katex" / "fonts" / "KaTeX_Main-Regular.woff2").exists()
+        css = (site / "assets" / "katex" / "katex.min.css").read_text(encoding="utf-8")
+        assert "0.18.4" in css
+        assert (site / "assets" / "InterVariable-Italic.woff2").exists()
+
+        index = (site / "index.html").read_text(encoding="utf-8")
+        assert 'class="tex"' in index
+        assert 'data-tex="E_{rel}"' in index  # $...$ belongs to the exports
+        # The Unicode form stays in the span as the no-script fallback.
+        assert "E\u1d63\u2091\u2097" in index
+        # Copy LaTeX is untouched: still math mode, still from catalog values.
+        assert "$E_{rel}$" in index
+        assert "$2.639^{+0.002}_{-0.002}$" in index
+
+        working = frame[frame["status"] == "working"].iloc[0]
+        page = (site / "results" / (working["id"].replace("/", "__") + ".html")).read_text(
+            encoding="utf-8"
+        )
+        assert 'data-tex="2.639^{+0.002}_{-0.002}"' in page
+        assert 'data-tex="\\hbar\\Omega\\ \\text{aggregation}"' in page
+
     def test_empty_catalog_still_renders_index(self, tmp_path):
         pytest.importorskip("jinja2")
         from results_library.views.site import build_site

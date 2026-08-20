@@ -34,25 +34,32 @@ logger = logging.getLogger(__name__)
 SITE_DIRNAME = "site"
 _IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 
-def _stat_fields() -> tuple[tuple[str, str], ...]:
-    from results_schema.labels import axis_unicode
+def _stat_fields() -> tuple[tuple[str, str, Optional[str]], ...]:
+    """``(catalog key, Unicode label, math label)`` for the value table.
+
+    The math form is what KaTeX typesets; the Unicode one stays as the label a
+    reader sees before the script runs, and is all Excel and the exports use.
+    """
+    from results_schema.labels import axis_latex, axis_unicode
 
     nmax = axis_unicode("Nmax")
     hw = axis_unicode("hOmega")
+    nmax_tex = axis_latex("Nmax", wrap=False)
+    hw_tex = axis_latex("hOmega", wrap=False)
     return (
-        ("median", "Median (central value)"),
-        ("err_low", "Uncertainty low (median - Q1)"),
-        ("err_high", "Uncertainty high (Q3 - median)"),
-        ("Q1", "Q1"),
-        ("Q3", "Q3"),
-        ("IQR", "IQR"),
-        ("N_models", "Models used"),
-        ("Nmax_final", f"{nmax} final"),
-        ("uncertainty_method", "Uncertainty method"),
-        ("homega_aggregation", f"{hw} aggregation"),
-        ("KDE_mode", "KDE mode"),
-        ("HDR_low", "HDR low"),
-        ("HDR_high", "HDR high"),
+        ("median", "Median (central value)", None),
+        ("err_low", "Uncertainty low (median - Q1)", None),
+        ("err_high", "Uncertainty high (Q3 - median)", None),
+        ("Q1", "Q1", None),
+        ("Q3", "Q3", None),
+        ("IQR", "IQR", None),
+        ("N_models", "Models used", None),
+        ("Nmax_final", f"{nmax} final", rf"{nmax_tex}\ \text{{final}}"),
+        ("uncertainty_method", "Uncertainty method", None),
+        ("homega_aggregation", f"{hw} aggregation", rf"{hw_tex}\ \text{{aggregation}}"),
+        ("KDE_mode", "KDE mode", None),
+        ("HDR_low", "HDR low", None),
+        ("HDR_high", "HDR high", None),
     )
 
 _PROVENANCE_FIELDS = (
@@ -113,6 +120,22 @@ def _format_number(value: Any) -> str:
     if isinstance(value, float):
         return str(int(value)) if value.is_integer() else f"{value:.3f}"
     return str(value)
+
+
+def _strip_dollars(value: Any) -> str:
+    """Bare math body, as KaTeX's ``render`` expects.
+
+    Stored LaTeX is written for a paper, so it usually carries its own ``$``
+    delimiters. Those are what the exports need and what KaTeX would try to
+    typeset as literal dollar signs.
+    """
+    value = _clean(value)
+    if value is None:
+        return ""
+    text = str(value).strip()
+    while len(text) >= 2 and text.startswith("$") and text.endswith("$"):
+        text = text[1:-1].strip()
+    return text
 
 
 def _page_name(result_id: str) -> str:
@@ -216,10 +239,12 @@ class SiteBuilder:
             trim_blocks=True,
             lstrip_blocks=True,
         )
-        from results_schema.labels import axis_unicode
+        from results_schema.labels import axis_latex, axis_unicode
 
         env.globals["nmax_label"] = axis_unicode("Nmax")
+        env.globals["nmax_latex"] = axis_latex("Nmax", wrap=False)
         env.filters["num"] = _format_number
+        env.filters["strip_dollars"] = _strip_dollars
         return env
 
     # -- build ---------------------------------------------------------
@@ -246,17 +271,24 @@ class SiteBuilder:
         return self.site_root
 
     def _copy_assets(self) -> None:
+        """Copy ``assets/`` into the site, subdirectories included.
+
+        The vendored KaTeX tree lives in ``assets/katex/`` with its own
+        ``fonts/``, so the walk has to be recursive: the stylesheet resolves
+        fonts relative to itself and a flattened copy would break them.
+        """
         source = Path(__file__).parent / "assets"
         target = self.site_root / "assets"
+        files = [path for path in sorted(source.rglob("*")) if path.is_file()]
+
         last_error: Optional[OSError] = None
         for attempt in range(6):
             try:
                 # Drive can finish deleting ``site/`` *after* we recreate it.
                 target.mkdir(parents=True, exist_ok=True)
-                for asset in source.iterdir():
-                    if not asset.is_file():
-                        continue
-                    dest = target / asset.name
+                for asset in files:
+                    dest = target / asset.relative_to(source)
+                    dest.parent.mkdir(parents=True, exist_ok=True)
                     dest.write_bytes(asset.read_bytes())
                 return
             except OSError as exc:
@@ -329,6 +361,7 @@ class SiteBuilder:
                 groups.append(
                     {
                         "heading": heading,
+                        "heading_latex": state_rows[0].get("state_latex"),
                         "table_id": f"{_nucleus_slug(nucleus)}-{state_slug}".replace(
                             "--to--", "-to-"
                         ),
@@ -365,8 +398,8 @@ class SiteBuilder:
 
             plots, artifacts = self._collect_artifacts(row, page_path)
             stats = [
-                (label, _format_number(row.get(key)))
-                for key, label in _stat_fields()
+                (label, latex, _format_number(row.get(key)))
+                for key, label, latex in _stat_fields()
                 if row.get(key) is not None
             ]
             provenance = [
@@ -387,6 +420,7 @@ class SiteBuilder:
                     "run_stamp": sibling.get("run_stamp"),
                     "setup": _setup_summary(sibling),
                     "value_label": sibling.get("value_label"),
+                    "value_latex": sibling.get("value_latex"),
                     "status": sibling.get("status"),
                 }
                 for sibling in siblings

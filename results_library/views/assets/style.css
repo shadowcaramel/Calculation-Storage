@@ -9,6 +9,13 @@
   font-display: swap;
   src: url("InterVariable.woff2") format("woff2");
 }
+@font-face {
+  font-family: "InterVariable";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("InterVariable-Italic.woff2") format("woff2");
+}
 
 /* --- design tokens ---------------------------------------------------- */
 
@@ -55,6 +62,12 @@
   --fs-xl: 1.75rem;
 
   --width: 1200px;
+
+  /* Shared by body copy and typeset math, so a formula sits in the same
+     face as the sentence around it. KaTeX's Computer Modern is serif and
+     would otherwise look like a second typeface. */
+  --font: "InterVariable", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Dark tokens, applied by system preference unless light is pinned, and by an
@@ -121,8 +134,7 @@ body {
   padding: 0 var(--sp-5) var(--sp-7);
   background: var(--bg);
   color: var(--ink);
-  font-family: "InterVariable", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font);
   font-size: var(--fs-base);
   line-height: 1.55;
   font-feature-settings: "cv05" 1, "ss03" 1;
@@ -448,6 +460,46 @@ table.detail th {
   border-bottom: 1px solid var(--line);
 }
 table.detail td { font-variant-numeric: tabular-nums; }
+
+/* Typeset math (KaTeX). Letters and ordinary symbols use the same Inter
+   stack as the page; KaTeX's Computer Modern would otherwise read as a
+   second, serif typeface. Stretchy delimiters and specialty alphabets
+   (\mathbb, \mathcal, large parentheses) keep KaTeX's own faces, which
+   Inter does not provide. The library stylesheet also pins a size and a
+   color; both have to yield to the surrounding text. */
+.katex {
+  font-family: var(--font), KaTeX_Main, sans-serif;
+  font-size: 1em;
+  font-weight: inherit;
+  font-style: inherit;
+  font-variant-numeric: inherit;
+  color: inherit;
+  line-height: inherit;
+}
+.katex .mathnormal,
+.katex .mathit,
+.katex .mathrm,
+.katex .mathbf,
+.katex .boldsymbol,
+.katex .mainrm,
+.katex .textrm,
+.katex .textit,
+.katex .textbf,
+.katex .mathsf,
+.katex .textsf,
+.katex .mathboldsf,
+.katex .textboldsf,
+.katex .mathitsf,
+.katex .mathsfit,
+.katex .textitsf {
+  font-family: var(--font), KaTeX_Main, KaTeX_Math, sans-serif;
+}
+.tex, .tex .katex { white-space: nowrap; }
+/* Label rows and column heads are small uppercase sans; math in them needs a
+   nudge up (and no uppercasing) to read as the same size. */
+thead .katex { font-size: 1.3em; text-transform: none; letter-spacing: normal; }
+table.detail th .katex { font-size: 1.15em; }
+.value-headline strong .katex { font-size: 1em; }
 
 .unit { color: var(--muted); font-size: 0.85em; }
 .hint { color: var(--muted); font-size: var(--fs-xs); }

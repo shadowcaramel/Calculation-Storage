@@ -16,6 +16,9 @@
   } catch (err) {}
 })();
 </script>
+{# KaTeX first, so the site stylesheet can override how typeset math sits in a
+   table row. Both files are vendored under assets/, nothing is fetched. #}
+<link rel="stylesheet" href="{{ root }}assets/katex/katex.min.css">
 <link rel="stylesheet" href="{{ root }}assets/style.css">
 </head>
 <body>
@@ -40,5 +43,7 @@
      Rebuild with <code>python -m results_library.cli build</code>.</p>
 </footer>
 <script src="{{ root }}assets/app.js"></script>
+{# app.js typesets on DOMContentLoaded, which is after this file has run. #}
+<script src="{{ root }}assets/katex/katex.min.js"></script>
 </body>
 </html>

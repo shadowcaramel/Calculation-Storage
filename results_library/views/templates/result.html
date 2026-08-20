@@ -1,17 +1,26 @@
 {% extends "base.html" %}
-{% from "macros.html" import help_tip %}
+{% from "macros.html" import help_tip, tex %}
 {% block title %}{{ row.title or row.id }}{% endblock %}
 
 {% block crumbs %}
   <span class="sep">/</span><a href="{{ root }}nucleus/{{ nucleus_slug }}.html">{{ row.nucleus_label or row.nucleus }}</a>
-  <span class="sep">/</span><span>{{ row.observable_label or row.observable }}</span>
+  <span class="sep">/</span><span>{{ tex(row.observable_latex, row.observable_label or row.observable) }}</span>
 {% endblock %}
 
 {% block content %}
-<h1>{{ row.title or (row.nucleus_label ~ ' ' ~ (row.state_label or '') ~ ' ' ~ (row.observable_label or row.observable)) }}</h1>
+{# A hand-written title is used verbatim; a derived one is assembled from the
+   parts so the state and the observable can be typeset. #}
+<h1>
+  {%- if row.title %}{{ row.title }}
+  {%- else %}{{ row.nucleus_label or row.nucleus }}
+  {{ tex(row.state_latex, row.state_label or '') }}
+  {{ tex(row.observable_latex, row.observable_label or row.observable) }}
+  {%- endif %}
+</h1>
 
 <p class="value-headline">
-  {{ row.observable_label or row.observable }} = <strong>{{ row.value_label or 'n/a' }}</strong>
+  {{ tex(row.observable_latex, row.observable_label or row.observable) }} =
+  <strong>{{ tex(row.value_latex, row.value_label or 'n/a') }}</strong>
   {% if row.units %}<span class="unit">{{ row.units }}</span>{% endif %}
   <span class="status status-{{ row.status }}">{{ row.status }}</span>
 </p>
@@ -61,8 +70,8 @@
 
   <table class="detail">
     <tbody>
-      {% for key, value in stats %}
-      <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+      {% for label, label_latex, value in stats %}
+      <tr><th>{{ tex(label_latex, label) }}</th><td>{{ value }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -93,7 +102,7 @@
       <tr>
         <td>{{ sib.run_stamp }}</td>
         <td class="setup">{{ sib.setup }}</td>
-        <td>{{ sib.value_label or '' }}</td>
+        <td>{{ tex(sib.value_latex, sib.value_label) }}</td>
         <td><span class="status status-{{ sib.status }}">{{ sib.status }}</span></td>
         <td>{% if sib.id != row.id %}<a href="{{ root }}results/{{ sib.page }}">open</a>{% else %}<em>this one</em>{% endif %}</td>
       </tr>
