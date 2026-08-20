@@ -161,7 +161,7 @@ def flatten_record(
     annotations: Dict[str, Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Turn one record into a single flat catalog row."""
-    from results_schema.labels import observable_unicode, setup_label
+    from results_schema.labels import mathtext_to_unicode, observable_unicode, setup_label
 
     record = scanned.data
     subject = record.get("subject") or {}
@@ -188,7 +188,8 @@ def flatten_record(
         "observable_latex": observable.get("latex"),
         "observable_label": observable_unicode(
             observable.get("name") or observable.get("slug"),
-            stored=observable.get("unicode"),
+            stored=observable.get("unicode")
+            or mathtext_to_unicode(observable.get("latex")),
             column_labels=record.get("column_labels"),
         ),
         "units": observable.get("units"),

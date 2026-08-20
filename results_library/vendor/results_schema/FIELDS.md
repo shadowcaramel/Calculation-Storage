@@ -93,7 +93,7 @@ collide, so the reference feeds both the observable slug and `variant_hash`.
 | `slug` | 1 | | str | Path-safe name. `B(E2)` becomes `BE2`, `Mn/Mp` becomes `Mn_over_Mp`. |
 | `name` | 1 | | str | Name as used in the data, e.g. `Erel`. |
 | `latex` | 1 | | str | Math-mode label for tables and figures. |
-| `unicode` | 1 | | str | Plain-text display form for HTML and Excel, e.g. `Eᵣₑₗ`. Copied from the identity registry or the plot-label table. |
+| `unicode` | 1 | | str | Plain-text display form for HTML and Excel, e.g. `Eᵣₑₗ`. Derived from `mathtext` / `latex` at capture. An explicit value is an optional override. |
 | `units` | 1 | | str | Physical units, empty string for dimensionless. |
 | `direction` | 1 | | str | `up` or `down` for transition strengths. B(E2) up and down differ by `(2J_f+1)/(2J_i+1)`, so an unlabelled value is ambiguous. |
 

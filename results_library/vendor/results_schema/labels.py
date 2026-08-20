@@ -14,6 +14,7 @@ Stdlib only, so the early config check can run without pydantic installed.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Iterable, Mapping, Optional
 
 from results_schema.nuclides import parse_nuclide
@@ -21,24 +22,10 @@ from results_schema.slugs import parity_sign, render_doubled_label
 
 _PARITY_UNICODE = {"+": "\u207a", "-": "\u207b"}
 
-# Axis / column display forms. These match the pipeline plot-label registry
-# (``[postprocessing.prediction_plots.labels.*]``): matplotlib gets ``mathtext``,
-# the HTML page gets Unicode, Copy LaTeX gets the math-mode string.
+# Axis / column display forms. Matplotlib gets ``mathtext`` from
+# ``[postprocessing.prediction_plots.labels.*]``; HTML and Excel get Unicode
+# derived from that string. Copy LaTeX keeps the math-mode form.
 # A captured record may overlay these via ``column_labels``.
-# Defaults match ``[postprocessing.prediction_plots.labels.*]`` in config.toml.
-# HTML/Excel use Unicode (the site is opened as local files, with no MathJax).
-# Copy LaTeX / .tex exports use the math-mode form.
-_AXIS_UNICODE = {
-    "hOmega": "\u0127\u03a9",  # ħΩ
-    "Nmax": "N\u2098\u2090\u2093",  # Nₘₐₓ
-    "Erel": "E\u1d63\u2091\u2097",  # Eᵣₑₗ
-    "Eexc": "E\u2091\u2093c",  # Eₑₓc (no subscript c)
-    "Eabs": "E_abs",
-    "RMS": "R\u1d63\u2098\u209b",  # Rᵣₘₛ
-    "rp": "r\u209a",  # rₚ
-    "rpp": "r\u209a\u209a",  # rₚₚ
-    "BSR": "BSR",
-}
 _AXIS_LATEX = {
     "hOmega": r"$\hbar\Omega$",
     "Nmax": r"$N_{\max}$",
@@ -49,6 +36,107 @@ _AXIS_LATEX = {
     "rp": r"$r_p$",
     "rpp": r"$r_{\mathrm{pp}}$",
     "BSR": r"$\mathrm{BSR}$",
+}
+
+# Unicode sub/superscripts that exist as dedicated characters. A script that
+# contains any other letter falls back to ``_text`` / ``^text``.
+_SUBSCRIPT = {
+    "0": "\u2080", "1": "\u2081", "2": "\u2082", "3": "\u2083", "4": "\u2084",
+    "5": "\u2085", "6": "\u2086", "7": "\u2087", "8": "\u2088", "9": "\u2089",
+    "+": "\u208a", "-": "\u208b", "=": "\u208c", "(": "\u208d", ")": "\u208e",
+    "a": "\u2090", "e": "\u2091", "h": "\u2095", "i": "\u1d62", "j": "\u2c7c",
+    "k": "\u2096", "l": "\u2097", "m": "\u2098", "n": "\u2099", "o": "\u2092",
+    "p": "\u209a", "r": "\u1d63", "s": "\u209b", "t": "\u209c", "u": "\u1d64",
+    "v": "\u1d65", "x": "\u2093",
+}
+_SUPERSCRIPT = {
+    "0": "\u2070", "1": "\u00b9", "2": "\u00b2", "3": "\u00b3", "4": "\u2074",
+    "5": "\u2075", "6": "\u2076", "7": "\u2077", "8": "\u2078", "9": "\u2079",
+    "+": "\u207a", "-": "\u207b", "=": "\u207c", "(": "\u207d", ")": "\u207e",
+    "n": "\u207f", "i": "\u2071",
+}
+
+# Longest-first so ``\Omega`` wins over a hypothetical ``\O``.
+_MATHTEXT_MACROS = {
+    "varepsilon": "\u03b5", "vartheta": "\u03d1", "varrho": "\u03f1",
+    "varsigma": "\u03c2", "varphi": "\u03c6", "hbar": "\u0127",
+    "alpha": "\u03b1", "beta": "\u03b2", "gamma": "\u03b3", "delta": "\u03b4",
+    "epsilon": "\u03b5", "zeta": "\u03b6", "eta": "\u03b7", "theta": "\u03b8",
+    "iota": "\u03b9", "kappa": "\u03ba", "lambda": "\u03bb", "mu": "\u03bc",
+    "nu": "\u03bd", "xi": "\u03be", "pi": "\u03c0", "rho": "\u03c1",
+    "sigma": "\u03c3", "tau": "\u03c4", "upsilon": "\u03c5", "phi": "\u03c6",
+    "chi": "\u03c7", "psi": "\u03c8", "omega": "\u03c9",
+    "Gamma": "\u0393", "Delta": "\u0394", "Theta": "\u0398", "Lambda": "\u039b",
+    "Xi": "\u039e", "Pi": "\u03a0", "Sigma": "\u03a3", "Phi": "\u03a6",
+    "Psi": "\u03a8", "Omega": "\u03a9",
+    "infty": "\u221e", "pm": "\u00b1", "times": "\u00d7", "cdot": "\u00b7",
+    "circ": "\u2218", "ell": "\u2113",
+    "max": "max", "min": "min",
+}
+_MACRO_NAMES = tuple(sorted(_MATHTEXT_MACROS, key=len, reverse=True))
+_MACRO_PATTERN = re.compile(
+    r"\\(" + "|".join(re.escape(name) for name in _MACRO_NAMES) + r")\b"
+)
+_ROMAN_PATTERN = re.compile(r"\\(?:mathrm|text|operatorname)\{([^{}]*)\}")
+_SPACING_PATTERN = re.compile(r"\\[,;:! ]|~")
+_BRACED_SUB = re.compile(r"_\{([^{}]*)\}")
+_BRACED_SUP = re.compile(r"\^\{([^{}]*)\}")
+_SINGLE_SUB = re.compile(r"_([A-Za-z0-9+\-])")
+_SINGLE_SUP = re.compile(r"\^([A-Za-z0-9+\-])")
+_UNKNOWN_MACRO = re.compile(r"\\([A-Za-z]+)")
+_LEFTOVER_BRACES = re.compile(r"[{}]")
+
+
+def _script_or_fallback(text: str, mapping: Mapping[str, str], prefix: str) -> str:
+    converted: list[str] = []
+    for char in text:
+        if char == " ":
+            continue
+        mapped = mapping.get(char)
+        if mapped is None:
+            return f"{prefix}{text}"
+        converted.append(mapped)
+    return "".join(converted)
+
+
+def mathtext_to_unicode(text: Optional[str]) -> str:
+    """Turn matplotlib mathtext into a Unicode label for HTML and Excel.
+
+    Covers the subset used in the plot-label table (``\\hbar``, ``_{...}``,
+    ``\\mathrm{...}``, Greek letters). Config only needs to store mathtext;
+    Unicode is derived. A leftover ``unicode =`` in a label table still wins.
+    """
+    if not text:
+        return ""
+    body = str(text).strip()
+    if body.startswith("$") and body.endswith("$") and len(body) >= 2:
+        body = body[1:-1]
+    body = _SPACING_PATTERN.sub("", body)
+    for _ in range(8):
+        updated = _ROMAN_PATTERN.sub(r"\1", body)
+        if updated == body:
+            break
+        body = updated
+    body = _MACRO_PATTERN.sub(lambda match: _MATHTEXT_MACROS[match.group(1)], body)
+    body = _SINGLE_SUB.sub(
+        lambda match: _script_or_fallback(match.group(1), _SUBSCRIPT, "_"), body
+    )
+    body = _SINGLE_SUP.sub(
+        lambda match: _script_or_fallback(match.group(1), _SUPERSCRIPT, "^"), body
+    )
+    body = _BRACED_SUB.sub(
+        lambda match: _script_or_fallback(match.group(1), _SUBSCRIPT, "_"), body
+    )
+    body = _BRACED_SUP.sub(
+        lambda match: _script_or_fallback(match.group(1), _SUPERSCRIPT, "^"), body
+    )
+    body = _UNKNOWN_MACRO.sub(r"\1", body)
+    body = _LEFTOVER_BRACES.sub("", body)
+    return re.sub(r"\s+", " ", body).strip()
+
+
+_AXIS_UNICODE = {
+    name: mathtext_to_unicode(latex) for name, latex in _AXIS_LATEX.items()
 }
 
 
@@ -222,13 +310,14 @@ def column_label_from_plot_entry(
 ) -> dict[str, str]:
     """Build the stored label block for one column from a plot-label table."""
     entry = entry or {}
+    latex = entry.get("mathtext") or entry.get("latex") or _AXIS_LATEX.get(name)
     unicode = (
         entry.get("unicode")
+        or mathtext_to_unicode(latex)
         or _AXIS_UNICODE.get(name)
         or entry.get("display")
         or name
     )
-    latex = entry.get("mathtext") or entry.get("latex") or _AXIS_LATEX.get(name)
     display = entry.get("display") or name
     unit = entry.get("unit") or entry.get("units") or ""
     out = {"display": str(display), "unicode": str(unicode)}
