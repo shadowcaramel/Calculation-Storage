@@ -45,6 +45,7 @@ from results_schema.models import (  # noqa: E402
     Reference,
     ResultRecord,
     StateRecord,
+    StoredFile,
     Subject,
     Variant,
 )
@@ -94,7 +95,14 @@ def _he6_record(run_stamp: str, **kwargs) -> ResultRecord:
         ),
         computed=kwargs.pop("computed", _computed()),
         run_stamp=run_stamp,
-        variant=kwargs.pop("variant", Variant(selection_set="final", bounds={"hOmega": [13, 40]})),
+        variant=kwargs.pop(
+            "variant",
+            Variant(
+                selection_set="final",
+                bounds={"Nmax": [2, 6], "hOmega": [13, 40]},
+                potential="Daejeon16",
+            ),
+        ),
         provenance=kwargs.pop(
             "provenance",
             Provenance(source_workbook="6He.xlsx", source_sheet="0p2"),
@@ -305,12 +313,49 @@ class TestCatalog:
         assert working["artifact_histogram_plot"].endswith("histogram.png")
         assert probing["status"].eq("probing").all()
         assert working["observable_label"] == "E\u1d63\u2091\u2097"
+        assert working["potential"] == "Daejeon16"
+        assert working["nmax_range"] == "[2, 6]"
+        assert working["setup_label"].startswith("Daejeon16")
         assert "\u0127\u03a9" in working["setup_label"]
 
         transition = frame[frame["nucleus"] == "16C"].iloc[0]
         assert transition["subject_kind"] == "transition"
         assert transition["direction"] == "down"
         assert "\u2192" in transition["state_label"]
+
+    def test_shared_source_paths_and_provenance_check_flatten(self, tmp_path):
+        library = tmp_path / "sources"
+        library.mkdir()
+        record = _he6_record(
+            "src",
+            provenance=Provenance(
+                source_workbook="6He.xlsx",
+                source_sheet="0p2",
+                source_file=StoredFile(
+                    name="raw.xlsx",
+                    sha256="ab" * 32,
+                    path="sources/abcd1234abcd1234/raw.xlsx",
+                ),
+                prepared_file=StoredFile(
+                    name="long.xlsx",
+                    sha256="cd" * 32,
+                    path="sources/cdef5678cdef5678/long.xlsx",
+                ),
+                provenance_check={
+                    "verdict": "pass",
+                    "detail": "4/4 rows",
+                    "n_rows": 4,
+                    "n_rows_matched": 4,
+                },
+            ),
+        )
+        _place(library, record, files={})
+        frame, _ = build_catalog(library)
+        row = frame.iloc[0]
+        assert row["source_file_path"] == "sources/abcd1234abcd1234/raw.xlsx"
+        assert row["prepared_file_name"] == "long.xlsx"
+        assert row["provenance_check_verdict"] == "pass"
+        assert row["provenance_check_n_rows_matched"] == 4
 
     def test_rebuild_is_from_scratch(self, library):
         frame, _ = build_catalog(library)
@@ -447,6 +492,8 @@ class TestLatex:
         csv_text = csv_table(rows)
         assert csv_text.splitlines()[0].startswith("State")
         assert "Erel" in csv_text
+        assert "Potential" in tex
+        assert "$N_{\\max}$" in tex
 
     def test_latex_escapes_plain_text_but_not_math(self):
         rows = [{"observable": "A_b", "state_latex": "$(2^{+})$", "value_latex": "1"}]
@@ -492,6 +539,8 @@ class TestSite:
         assert "\u0127\u03a9 aggregation" in html
         assert "Fingerprint of the setup" in html
         assert "help-mark" in html
+        assert "Nmax at which the extrapolated value is read off" in html
+        assert "Daejeon16" in html
 
     def test_math_is_typeset_from_stored_latex(self, library):
         pytest.importorskip("jinja2")
@@ -549,6 +598,118 @@ class TestSite:
         assert "(0⁺, T=1)(2)" in html or "(0" in html
         assert "E\u1d63\u2091\u2097" in html
 
+    def test_selection_set_tabs_default_to_final(self, tmp_path):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        library = tmp_path / "tabs"
+        library.mkdir()
+        bounds = {"Nmax": [2, 6], "hOmega": [13, 40]}
+        provenance = Provenance(run_dir="run-one", source_sheet="0p2")
+        _place(
+            library,
+            _he6_record(
+                "2026-08-18_final",
+                variant=Variant(
+                    selection_set="final", bounds=bounds, potential="Daejeon16"
+                ),
+                provenance=provenance,
+            ),
+        )
+        _place(
+            library,
+            _he6_record(
+                "2026-08-18_all",
+                variant=Variant(
+                    selection_set="all_models", bounds=bounds, potential="Daejeon16"
+                ),
+                provenance=provenance,
+            ),
+        )
+        frame, _ = build_catalog(library)
+        site = build_site(library, frame)
+        index = (site / "index.html").read_text(encoding="utf-8")
+        assert "data-selection-tabs" in index
+        assert 'data-selection-tab="final"' in index
+        assert 'data-selection-tab="all_models"' in index
+        assert 'data-selection="final"' in index
+        assert 'class="tab is-active"' in index
+
+        final_row = frame[frame["selection_set"] == "final"].iloc[0]
+        page = (
+            site / "results" / (final_row["id"].replace("/", "__") + ".html")
+        ).read_text(encoding="utf-8")
+        assert "all_models" in page
+        assert ">final<" in page
+
+    def test_nmax_windows_section_groups_training_ranges(self, tmp_path):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        library = tmp_path / "nmax"
+        library.mkdir()
+        shared = dict(
+            selection_set="final",
+            potential="Daejeon16",
+            filter_criteria=["all_passed"],
+        )
+        _place(
+            library,
+            _he6_record(
+                "2026-08-18_n6",
+                variant=Variant(bounds={"Nmax": [2, 6], "hOmega": [13, 40]}, **shared),
+            ),
+        )
+        _place(
+            library,
+            _he6_record(
+                "2026-08-18_n18",
+                variant=Variant(bounds={"Nmax": [2, 18], "hOmega": [13, 40]}, **shared),
+            ),
+        )
+        frame, _ = build_catalog(library)
+        site = build_site(library, frame)
+        index = (site / "index.html").read_text(encoding="utf-8")
+        assert "[2, 6]" in index
+        assert "[2, 18]" in index
+        page = (
+            site / "results" / (frame.iloc[0]["id"].replace("/", "__") + ".html")
+        ).read_text(encoding="utf-8")
+        assert "Other Nmax windows" in page
+        assert "[2, 6]" in page
+        assert "[2, 18]" in page
+
+    def test_comparisons_page_and_cross_links(self, library):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        frame, _ = build_catalog(library)
+        working = frame[frame["status"] == "working"].iloc[0]
+        (library / "comparisons").mkdir()
+        (library / "comparisons" / "triplet.png").write_bytes(_PLOT)
+        (library / "comparisons.toml").write_text(
+            f'''[[figure]]
+title = "Isospin triplet"
+file = "comparisons/triplet.png"
+caption = "A hand-made comparison."
+results = ["{working["id"]}"]
+''',
+            encoding="utf-8",
+        )
+        site = build_site(library, frame)
+        comparisons = (site / "comparisons.html").read_text(encoding="utf-8")
+        assert "Isospin triplet" in comparisons
+        assert "A hand-made comparison." in comparisons
+        assert "../comparisons/triplet.png" in comparisons
+        index = (site / "index.html").read_text(encoding="utf-8")
+        assert "Comparisons" in index
+        nucleus = (site / "nucleus" / "6He.html").read_text(encoding="utf-8")
+        assert "Isospin triplet" in nucleus
+        detail = (
+            site / "results" / (working["id"].replace("/", "__") + ".html")
+        ).read_text(encoding="utf-8")
+        assert "Isospin triplet" in detail
+
 
 # ---------------------------------------------------------------------------
 # Excel
@@ -567,8 +728,10 @@ class TestExcel:
         he6 = workbook["6He"]
         # Header + the one curated row (the other 6He result is probing).
         assert he6.max_row == 2
-        assert he6.cell(row=2, column=9).value == "working"
-        assert he6.cell(row=2, column=10).value == "Own sample weights."
+        assert he6.cell(row=2, column=3).value == "Daejeon16"
+        assert he6.cell(row=2, column=9).value == "[2, 6]"
+        assert he6.cell(row=2, column=11).value == "working"
+        assert he6.cell(row=2, column=12).value == "Own sample weights."
 
         # 16C transition is still probing, so it is not shown.
         assert "16C" not in workbook.sheetnames
@@ -586,8 +749,8 @@ class TestExcel:
         frame, _ = build_catalog(library)
         path = build_workbook(library, frame, include_probing=False)
         sheet = load_workbook(path)["6He"]
-        plot_cell = sheet.cell(row=2, column=15)  # Plot
-        details = sheet.cell(row=2, column=18)  # Details
+        plot_cell = sheet.cell(row=2, column=17)  # Plot
+        details = sheet.cell(row=2, column=20)  # Details
         assert plot_cell.hyperlink is not None
         assert "histogram.png" in str(plot_cell.hyperlink.target)
         assert details.hyperlink is not None

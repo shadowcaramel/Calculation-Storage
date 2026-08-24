@@ -121,6 +121,7 @@ collide, so the reference feeds both the observable slug and `variant_hash`.
 | `filter_criteria` | 1 | | list[str] | Filtering criteria applied. |
 | `reference_convention` | 1 | | table | Echo of `reference.convention`, so the hash covers it. |
 | `config_name` | 1 | | str | Pipeline configuration name, e.g. `0p2/Nmax=[4,18]_hOmega=[8,50]`. |
+| `potential` | 1 | | str | Nucleon-nucleon interaction of the source data, e.g. `Daejeon16`. Declared in `[identity].potential`; hashed with the rest of this block so two identical extrapolations on different potentials never share a fingerprint. Not part of the result id. Older records lack it. |
 | `variant_hash` | 1 | | str | First 8 hex chars of a SHA-256 over the rest of this block. Identical setups across runs share a hash. |
 
 ## `provenance`
@@ -130,9 +131,12 @@ collide, so the reference feeds both the observable slug and `variant_hash`.
 | `code_version` | 1 | | str | Git commit or tag of the pipeline that produced the result. |
 | `created_at` | 1 | | str | ISO-8601 UTC timestamp. |
 | `run_dir` | 1 | | str | Name of the Tier 1 run directory, which may later be pruned. |
-| `config_snapshot` | 1 | | str | Filename of the frozen config inside the run directory. |
-| `source_workbook` | 1 | | str | Prepared workbook the data came from, taken from config paths. |
+| `config_snapshot` | 1 | | str | Filename of the frozen config **inside this bundle** (`config_snapshot.toml`). Copied from the run directory at capture so a result can be re-run after the run dir is pruned. Older records may name a file that existed only in the run dir. |
+| `source_workbook` | 1 | | str | Prepared workbook basename, taken from config paths. |
 | `source_sheet` | 1 | | str | Sheet within that workbook. |
+| `source_file` | 1 | | table | Shared library copy of the original source workbook: `{name, sha256, path}` under `sources/<sha256[:16]>/`. |
+| `prepared_file` | 1 | | table | Shared library copy of the prepared long workbook, same shape as `source_file`. |
+| `provenance_check` | 1 | | table | Summary of the optional S→P numerical gate (`verdict`, distinctive/row counts). Absent when the check was off. |
 
 Nothing in `provenance` is scraped from inside a workbook; these come from the
 config the pipeline already reads.

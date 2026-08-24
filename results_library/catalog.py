@@ -94,6 +94,15 @@ def scan_bundles(library_root: Path) -> ScanResult:
 # Flattening
 # ---------------------------------------------------------------------------
 
+def _format_bound(value: Any) -> str:
+    """Compact bound endpoint: ``6`` not ``6.0``."""
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
 def _state_columns(state: Optional[Dict[str, Any]], prefix: str) -> Dict[str, Any]:
     if not state:
         return {}
@@ -194,6 +203,7 @@ def flatten_record(
         ),
         "units": observable.get("units"),
         "direction": observable.get("direction"),
+        "potential": variant.get("potential"),
     }
 
     if subject.get("kind") == "transition":
@@ -221,8 +231,16 @@ def flatten_record(
             row[f"bounds_{column}_min"] = limits[0]
             row[f"bounds_{column}_max"] = limits[1]
     row["setup_label"] = setup_label(
-        variant.get("bounds") or {}, record.get("column_labels")
+        variant.get("bounds") or {},
+        record.get("column_labels"),
+        potential=variant.get("potential"),
     )
+    nmax_min = row.get("bounds_Nmax_min")
+    nmax_max = row.get("bounds_Nmax_max")
+    if nmax_min is not None or nmax_max is not None:
+        row["nmax_range"] = f"[{_format_bound(nmax_min)}, {_format_bound(nmax_max)}]"
+    else:
+        row["nmax_range"] = None
 
     # Reference
     row["reference_nucleus"] = reference.get("nucleus")
@@ -237,6 +255,18 @@ def flatten_record(
         "source_workbook", "source_sheet",
     ):
         row[key] = provenance.get(key)
+    for kind in ("source_file", "prepared_file"):
+        entry = provenance.get(kind) or {}
+        if isinstance(entry, dict):
+            row[f"{kind}_path"] = entry.get("path")
+            row[f"{kind}_name"] = entry.get("name")
+            row[f"{kind}_sha256"] = entry.get("sha256")
+    check = provenance.get("provenance_check")
+    if isinstance(check, dict):
+        row["provenance_check_verdict"] = check.get("verdict")
+        row["provenance_check_detail"] = check.get("detail")
+        row["provenance_check_n_rows"] = check.get("n_rows")
+        row["provenance_check_n_rows_matched"] = check.get("n_rows_matched")
 
     # Human layer wins over the record's default status.
     row.update(merge_annotation(record, annotations.get(result_id, {})))

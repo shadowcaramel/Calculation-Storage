@@ -341,6 +341,70 @@ h2 {
   font-variant-numeric: tabular-nums;
 }
 
+/* --- selection-set tabs ---------------------------------------------- */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-4);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tab:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.tab.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  cursor: default;
+}
+
+/* --- comparison figures ---------------------------------------------- */
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--sp-5);
+}
+
+.figure-card {
+  margin: 0;
+}
+
+.figure-card img {
+  width: 100%;
+  height: auto;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.figure-card figcaption {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+
+.figure-card figcaption p { margin: var(--sp-1) 0 0; }
+
 /* --- cards / tables --------------------------------------------------- */
 
 .table-block {

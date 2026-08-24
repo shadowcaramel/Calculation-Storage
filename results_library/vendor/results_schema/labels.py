@@ -390,9 +390,12 @@ def axis_latex(
 def setup_label(
     bounds: Mapping[str, Any],
     column_labels: Optional[Mapping[str, Any]] = None,
+    potential: Optional[str] = None,
 ) -> str:
-    """``ħΩ [8, 50]; Nmax [4, 18]`` from a variant bounds table."""
+    """``Daejeon16; ħΩ [8, 50]; Nmax [4, 18]`` from a variant bounds table."""
     parts: list[str] = []
+    if potential:
+        parts.append(str(potential))
     for column, limits in bounds.items():
         if isinstance(limits, (list, tuple)) and len(limits) == 2:
             parts.append(

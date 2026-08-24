@@ -22,6 +22,12 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional
 import pandas as pd
 
 from results_library.annotations import STATUSES
+from results_library.comparisons import (
+    ComparisonFigure,
+    figures_for_nucleus,
+    figures_for_result,
+    load_comparisons,
+)
 from results_library.views.latex import (
     DEFAULT_COLUMNS,
     csv_table,
@@ -34,8 +40,8 @@ logger = logging.getLogger(__name__)
 SITE_DIRNAME = "site"
 _IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 
-def _stat_fields() -> tuple[tuple[str, str, Optional[str]], ...]:
-    """``(catalog key, Unicode label, math label)`` for the value table.
+def _stat_fields() -> tuple[tuple[str, str, Optional[str], Optional[str]], ...]:
+    """``(catalog key, Unicode label, math label, optional hint)`` for the value table.
 
     The math form is what KaTeX typesets; the Unicode one stays as the label a
     reader sees before the script runs, and is all Excel and the exports use.
@@ -47,24 +53,26 @@ def _stat_fields() -> tuple[tuple[str, str, Optional[str]], ...]:
     nmax_tex = axis_latex("Nmax", wrap=False)
     hw_tex = axis_latex("hOmega", wrap=False)
     return (
-        ("median", "Median (central value)", None),
-        ("err_low", "Uncertainty low (median - Q1)", None),
-        ("err_high", "Uncertainty high (Q3 - median)", None),
-        ("Q1", "Q1", None),
-        ("Q3", "Q3", None),
-        ("IQR", "IQR", None),
-        ("N_models", "Models used", None),
-        ("Nmax_final", f"{nmax} final", rf"{nmax_tex}\ \text{{final}}"),
-        ("uncertainty_method", "Uncertainty method", None),
-        ("homega_aggregation", f"{hw} aggregation", rf"{hw_tex}\ \text{{aggregation}}"),
-        ("KDE_mode", "KDE mode", None),
-        ("HDR_low", "HDR low", None),
-        ("HDR_high", "HDR high", None),
+        ("median", "Median (central value)", None, None),
+        ("err_low", "Uncertainty low (median - Q1)", None, None),
+        ("err_high", "Uncertainty high (Q3 - median)", None, None),
+        ("Q1", "Q1", None, None),
+        ("Q3", "Q3", None, None),
+        ("IQR", "IQR", None, None),
+        ("N_models", "Models used", None, None),
+        ("Nmax_final", f"{nmax} final", rf"{nmax_tex}\ \text{{final}}",
+         "Nmax at which the extrapolated value is read off, not the training-data window."),
+        ("uncertainty_method", "Uncertainty method", None, None),
+        ("homega_aggregation", f"{hw} aggregation", rf"{hw_tex}\ \text{{aggregation}}", None),
+        ("KDE_mode", "KDE mode", None, None),
+        ("HDR_low", "HDR low", None, None),
+        ("HDR_high", "HDR high", None, None),
     )
 
 _PROVENANCE_FIELDS = (
     ("run_stamp", "Run"),
     ("selection_set", "Selection set"),
+    ("potential", "Potential"),
     ("filter_criteria", "Filter criteria"),
     ("config_name", "Configuration"),
     ("variant_hash", "Variant hash"),
@@ -75,8 +83,13 @@ _PROVENANCE_FIELDS = (
     ("code_version", "Code version"),
     ("created_at", "Captured at"),
     ("run_dir", "Run directory"),
-    ("source_workbook", "Source workbook"),
+    ("source_workbook", "Prepared workbook (basename)"),
     ("source_sheet", "Source sheet"),
+    ("source_file_path", "Original source file"),
+    ("prepared_file_path", "Prepared data file"),
+    ("config_snapshot", "Config snapshot"),
+    ("provenance_check_verdict", "S→P check"),
+    ("provenance_check_detail", "S→P check detail"),
     ("schema_version", "Schema version"),
     ("migrations_applied", "Migrations applied"),
 )
@@ -86,6 +99,21 @@ _PROVENANCE_HINTS = {
     "variant_hash": (
         "Fingerprint of the setup (bounds, filters, selection, reference "
         "convention), not of this run. Identical setups share it."
+    ),
+    "source_file_path": (
+        "Content-addressed copy of the original MFDn/pivot workbook, shared "
+        "across results that used the same file."
+    ),
+    "prepared_file_path": (
+        "Content-addressed copy of the long Excel the pipeline actually read."
+    ),
+    "config_snapshot": (
+        "Frozen config copied into this result's bundle, not the run directory."
+    ),
+    "provenance_check_verdict": (
+        "Numerical check that distinctive values in the prepared workbook "
+        "appear in the source, with each (Nmax, ħΩ, value) recoverable on a "
+        "source row or column."
     ),
 }
 
@@ -157,9 +185,11 @@ def _row_dict(record: Mapping[str, Any]) -> Dict[str, Any]:
             "nucleus", "nucleus_label", "state_label", "state_slug", "observable",
             "observable_label", "observable_slug", "status", "title", "note",
             "outcome", "tags", "selection_set", "config_name", "run_stamp", "id",
-            "setup_label",
+            "setup_label", "potential",
         )
     )
+    row["cohort_key"] = _cohort_key(row)
+    row["nmax_scan_key"] = _nmax_scan_key(row)
     return row
 
 
@@ -213,6 +243,185 @@ def _setup_summary(row: Mapping[str, Any]) -> str:
     return "; ".join(parts)
 
 
+def _bound_signature(
+    row: Mapping[str, Any], skip: frozenset[str] = frozenset()
+) -> tuple:
+    items = []
+    for key, value in row.items():
+        text = str(key)
+        if not text.startswith("bounds_") or not text.endswith("_min"):
+            continue
+        column = text[len("bounds_"):-len("_min")]
+        if column in skip:
+            continue
+        items.append((column, _clean(value), _clean(row.get(f"bounds_{column}_max"))))
+    return tuple(sorted(items))
+
+
+def _cohort_key(row: Mapping[str, Any]) -> str:
+    """One trained ensemble: same run, family, potential, and training bounds."""
+    return "|".join((
+        str(row.get("run_dir") or ""),
+        str(row.get("family") or ""),
+        str(row.get("potential") or ""),
+        repr(_bound_signature(row)),
+    ))
+
+
+def _nmax_scan_key(row: Mapping[str, Any]) -> str:
+    """Nmax-scan siblings: same family, potential, ħΩ, selection, and filters."""
+    return "|".join((
+        str(row.get("family") or ""),
+        str(row.get("potential") or ""),
+        str(row.get("selection_set") or ""),
+        str(row.get("filter_criteria") or ""),
+        repr(_bound_signature(row, skip=frozenset({"Nmax"}))),
+    ))
+
+
+def _selection_tabs(rows: Iterable[Mapping[str, Any]]) -> List[str]:
+    """Selection-set names present in ``rows``, or empty when there is only one."""
+    names: List[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        name = row.get("selection_set")
+        if not name:
+            continue
+        name = str(name)
+        if name not in seen:
+            seen.add(name)
+            names.append(name)
+    if len(names) < 2:
+        return []
+    names.sort()
+    if "final" in names:
+        names.remove("final")
+        names.insert(0, "final")
+    return names
+
+
+def _selection_siblings(
+    row: Mapping[str, Any], rows: Iterable[Mapping[str, Any]]
+) -> List[Dict[str, Any]]:
+    key = row.get("cohort_key")
+    peers = [item for item in rows if item.get("cohort_key") == key]
+    names = {item.get("selection_set") for item in peers if item.get("selection_set")}
+    if len(names) < 2:
+        return []
+
+    def order(item: Mapping[str, Any]) -> tuple:
+        name = str(item.get("selection_set") or "")
+        return (0 if name == "final" else 1, name)
+
+    return [
+        {
+            "id": peer["id"],
+            "page": peer["page"],
+            "selection_set": peer.get("selection_set"),
+            "value_label": peer.get("value_label"),
+            "value_latex": peer.get("value_latex"),
+            "status": peer.get("status"),
+        }
+        for peer in sorted(peers, key=order)
+    ]
+
+
+def _nmax_windows(
+    row: Mapping[str, Any], rows: Iterable[Mapping[str, Any]]
+) -> List[Dict[str, Any]]:
+    key = row.get("nmax_scan_key")
+    peers = [item for item in rows if item.get("nmax_scan_key") == key]
+    windows = {
+        (item.get("bounds_Nmax_min"), item.get("bounds_Nmax_max")) for item in peers
+    }
+    if len(windows) < 2:
+        return []
+
+    def order(item: Mapping[str, Any]) -> tuple:
+        high = item.get("bounds_Nmax_max")
+        low = item.get("bounds_Nmax_min")
+        return (
+            high is None,
+            high if high is not None else 0,
+            low if low is not None else 0,
+            str(item.get("run_stamp") or ""),
+        )
+
+    return [
+        {
+            "id": peer["id"],
+            "page": peer["page"],
+            "nmax_range": peer.get("nmax_range"),
+            "run_stamp": peer.get("run_stamp"),
+            "setup": _setup_summary(peer),
+            "value_label": peer.get("value_label"),
+            "value_latex": peer.get("value_latex"),
+            "status": peer.get("status"),
+        }
+        for peer in sorted(peers, key=order)
+    ]
+
+
+def _library_files(row: Mapping[str, Any], page_path: str) -> List[Dict[str, str]]:
+    files: List[Dict[str, str]] = []
+    for key, label in (
+        ("source_file_path", "original source workbook"),
+        ("prepared_file_path", "prepared workbook"),
+    ):
+        path = row.get(key)
+        if not path:
+            continue
+        name_key = key.replace("_path", "_name")
+        files.append(
+            {
+                "label": label,
+                "name": str(row.get(name_key) or Path(str(path)).name),
+                "href": _href(page_path, str(path)),
+            }
+        )
+    return files
+
+
+def _provenance_href(row: Mapping[str, Any], key: str, page_path: str) -> Optional[str]:
+    if key in ("source_file_path", "prepared_file_path"):
+        path = row.get(key)
+        return _href(page_path, str(path)) if path else None
+    if key == "config_snapshot":
+        artifact = row.get("artifact_config_snapshot")
+        return _href(page_path, str(artifact)) if artifact else None
+    return None
+
+
+def _figure_views(
+    figures: Iterable[ComparisonFigure],
+    page_path: str,
+    rows_by_id: Mapping[str, Mapping[str, Any]],
+) -> List[Dict[str, Any]]:
+    views: List[Dict[str, Any]] = []
+    for figure in figures:
+        views.append(
+            {
+                "title": figure.title,
+                "caption": figure.caption,
+                "file": figure.file,
+                "href": _href(page_path, figure.file),
+                "is_image": Path(figure.file).suffix.lower() in _IMAGE_SUFFIXES,
+                "results": [
+                    {
+                        "id": result_id,
+                        "page": _page_name(result_id),
+                        "label": (
+                            (rows_by_id.get(result_id) or {}).get("value_label")
+                            or result_id
+                        ),
+                    }
+                    for result_id in figure.results
+                ],
+            }
+        )
+    return views
+
+
 class SiteBuilder:
     """Renders the catalog into a static site under ``<library>/site``."""
 
@@ -259,14 +468,20 @@ class SiteBuilder:
 
         self._copy_assets()
 
+        figures = load_comparisons(self.library_root)
+        environment.globals["has_comparisons"] = bool(figures)
+
         rows = [_row_dict(record) for record in self.catalog.to_dict("records")]
         rows.sort(key=lambda r: (str(r.get("nucleus") or ""), str(r.get("family") or ""),
                                  str(r.get("run_stamp") or "")))
+        rows_by_id = {str(row.get("id") or ""): row for row in rows}
 
         self._write_exports(rows)
-        self._render_index(environment, rows)
-        self._render_nucleus_pages(environment, rows)
-        self._render_result_pages(environment, rows)
+        self._render_index(environment, rows, figures, rows_by_id)
+        self._render_nucleus_pages(environment, rows, figures, rows_by_id)
+        self._render_result_pages(environment, rows, figures, rows_by_id)
+        if figures:
+            self._render_comparisons(environment, rows, figures, rows_by_id)
 
         return self.site_root
 
@@ -317,7 +532,13 @@ class SiteBuilder:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(template.render(**context), encoding="utf-8")
 
-    def _render_index(self, environment, rows: List[Dict[str, Any]]) -> None:
+    def _render_index(
+        self,
+        environment,
+        rows: List[Dict[str, Any]],
+        figures: List[ComparisonFigure],
+        rows_by_id: Mapping[str, Mapping[str, Any]],
+    ) -> None:
         counts: Dict[str, int] = {}
         labels: Dict[str, str] = {}
         for row in rows:
@@ -329,6 +550,7 @@ class SiteBuilder:
             {"slug": _nucleus_slug(n), "label": labels[n], "count": counts[n]}
             for n in sorted(counts)
         ]
+        tabs = _selection_tabs(rows)
 
         self._render(
             self.site_root / "index.html",
@@ -341,9 +563,18 @@ class SiteBuilder:
             exports=_exports(rows),
             generated_at=self.generated_at,
             record_count=len(rows),
+            selection_tabs=tabs,
+            default_selection=tabs[0] if tabs else None,
+            comparison_figures=_figure_views(figures, f"{SITE_DIRNAME}/index.html", rows_by_id),
         )
 
-    def _render_nucleus_pages(self, environment, rows: List[Dict[str, Any]]) -> None:
+    def _render_nucleus_pages(
+        self,
+        environment,
+        rows: List[Dict[str, Any]],
+        figures: List[ComparisonFigure],
+        rows_by_id: Mapping[str, Mapping[str, Any]],
+    ) -> None:
         template = environment.get_template("nucleus.html")
         by_nucleus: Dict[str, List[Dict[str, Any]]] = {}
         for row in rows:
@@ -370,6 +601,8 @@ class SiteBuilder:
                     }
                 )
 
+            page_path = f"{SITE_DIRNAME}/nucleus/{_nucleus_slug(nucleus)}.html"
+            tabs = _selection_tabs(nucleus_rows)
             self._render(
                 self.site_root / "nucleus" / f"{_nucleus_slug(nucleus)}.html",
                 template,
@@ -381,9 +614,20 @@ class SiteBuilder:
                 hide_probing=_hide_probing_default(nucleus_rows),
                 generated_at=self.generated_at,
                 record_count=len(nucleus_rows),
+                selection_tabs=tabs,
+                default_selection=tabs[0] if tabs else None,
+                comparison_figures=_figure_views(
+                    figures_for_nucleus(figures, nucleus), page_path, rows_by_id
+                ),
             )
 
-    def _render_result_pages(self, environment, rows: List[Dict[str, Any]]) -> None:
+    def _render_result_pages(
+        self,
+        environment,
+        rows: List[Dict[str, Any]],
+        figures: List[ComparisonFigure],
+        rows_by_id: Mapping[str, Mapping[str, Any]],
+    ) -> None:
         template = environment.get_template("result.html")
 
         families: Dict[str, List[Dict[str, Any]]] = {}
@@ -398,15 +642,19 @@ class SiteBuilder:
 
             plots, artifacts = self._collect_artifacts(row, page_path)
             stats = [
-                (label, latex, _format_number(row.get(key)))
-                for key, label, latex in _stat_fields()
+                (label, latex, _format_number(row.get(key)), hint)
+                for key, label, latex, hint in _stat_fields()
                 if row.get(key) is not None
             ]
-            provenance = [
-                (label, row.get(key), _PROVENANCE_HINTS.get(key))
-                for key, label in _PROVENANCE_FIELDS
-                if row.get(key) not in (None, "")
-            ]
+            provenance = []
+            for key, label in _PROVENANCE_FIELDS:
+                value = row.get(key)
+                if value in (None, ""):
+                    continue
+                provenance.append(
+                    (label, value, _PROVENANCE_HINTS.get(key),
+                     _provenance_href(row, key, page_path))
+                )
 
             siblings = sorted(
                 families.get(str(row.get("family") or ""), []),
@@ -437,12 +685,38 @@ class SiteBuilder:
                 stats=stats,
                 provenance=provenance,
                 siblings=sibling_rows if len(sibling_rows) > 1 else [],
+                selection_siblings=_selection_siblings(row, rows),
+                nmax_windows=_nmax_windows(row, rows),
+                library_files=_library_files(row, page_path),
+                comparison_figures=_figure_views(
+                    figures_for_result(figures, str(row.get("id") or "")),
+                    page_path,
+                    rows_by_id,
+                ),
                 bundle_href=_href(page_path, str(row.get("bundle_path") or "")),
                 exports=_exports([row]),
                 statuses=STATUSES,
                 generated_at=self.generated_at,
                 record_count=1,
             )
+
+    def _render_comparisons(
+        self,
+        environment,
+        rows: List[Dict[str, Any]],
+        figures: List[ComparisonFigure],
+        rows_by_id: Mapping[str, Mapping[str, Any]],
+    ) -> None:
+        self._render(
+            self.site_root / "comparisons.html",
+            environment.get_template("comparisons.html"),
+            root="",
+            comparison_figures=_figure_views(
+                figures, f"{SITE_DIRNAME}/comparisons.html", rows_by_id
+            ),
+            generated_at=self.generated_at,
+            record_count=len(rows),
+        )
 
     def _collect_artifacts(
         self, row: Mapping[str, Any], page_path: str

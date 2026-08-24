@@ -31,6 +31,46 @@
 {%- endif -%}
 {% endmacro %}
 
+{% macro selection_tab_bar(tabs, default) %}
+{%- if tabs -%}
+<nav class="tabs" data-selection-tabs aria-label="Selection set">
+  {% for tab in tabs %}
+  <button type="button" class="tab{% if tab == default %} is-active{% endif %}"
+          data-selection-tab="{{ tab }}">{{ tab }}</button>
+  {% endfor %}
+</nav>
+{%- endif -%}
+{% endmacro %}
+
+{% macro figure_cards(figures, root) %}
+{%- if figures -%}
+<div class="gallery">
+  {% for figure in figures %}
+  <figure class="figure-card">
+    {% if figure.is_image %}
+    <a href="{{ figure.href }}" title="Open full size">
+      <img src="{{ figure.href }}" alt="{{ figure.title }}">
+    </a>
+    {% else %}
+    <a href="{{ figure.href }}">{{ figure.file }}</a>
+    {% endif %}
+    <figcaption>
+      <strong>{{ figure.title }}</strong>
+      {% if figure.caption %}<p>{{ figure.caption }}</p>{% endif %}
+      {% if figure.results %}
+      <p class="hint">Results:
+        {% for item in figure.results %}
+        <a href="{{ root }}results/{{ item.page }}">{{ item.id }}</a>{% if not loop.last %}, {% endif %}
+        {% endfor %}
+      </p>
+      {% endif %}
+    </figcaption>
+  </figure>
+  {% endfor %}
+</div>
+{%- endif -%}
+{% endmacro %}
+
 {% macro table_block(rows, heading, table_id, root, exports, heading_latex=None) %}
 <section class="table-block">
   <div class="table-head">
@@ -52,6 +92,7 @@
         <th data-sort="text">Nucleus</th>
         <th data-sort="text">State</th>
         <th data-sort="text">Observable</th>
+        <th data-sort="text">Potential</th>
         <th data-sort="number">Value</th>
         <th data-sort="number">N models</th>
         <th data-sort="number">{{ tex(nmax_latex, nmax_label) }}</th>
@@ -61,13 +102,16 @@
     </thead>
     <tbody>
       {% for row in rows %}
-      <tr data-status="{{ row.status }}" data-search="{{ row.search_text }}">
+      <tr data-status="{{ row.status }}" data-search="{{ row.search_text }}"
+          data-selection="{{ row.selection_set or '' }}"
+          data-cohort="{{ row.cohort_key }}">
         <td>{{ row.nucleus_label or row.nucleus }}</td>
         <td data-value="{{ row.state_label or row.state_slug }}">{{ tex(row.state_latex, row.state_label or row.state_slug) }}</td>
         <td data-value="{{ row.observable_label or row.observable }}">{{ tex(row.observable_latex, row.observable_label or row.observable) }}{% if row.units %} <span class="unit">({{ row.units }})</span>{% endif %}</td>
+        <td>{{ row.potential or "unspecified" }}</td>
         <td class="num" data-value="{{ row.median if row.median is not none else '' }}">{{ tex(row.value_latex, row.value_label) }}</td>
         <td class="num" data-value="{{ row.N_models if row.N_models is not none else '' }}">{{ row.N_models | num }}</td>
-        <td class="num" data-value="{{ row.Nmax_final if row.Nmax_final is not none else '' }}">{{ row.Nmax_final | num }}</td>
+        <td class="num" data-value="{{ row.bounds_Nmax_max if row.bounds_Nmax_max is not none else '' }}">{{ row.nmax_range or "" }}</td>
         <td><span class="status status-{{ row.status }}">{{ row.status }}</span></td>
         <td><a href="{{ root }}results/{{ row.page }}">details</a></td>
       </tr>

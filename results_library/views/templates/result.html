@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import help_tip, tex %}
+{% from "macros.html" import figure_cards, help_tip, tex %}
 {% block title %}{{ row.title or row.id }}{% endblock %}
 
 {% block crumbs %}
@@ -24,6 +24,18 @@
   {% if row.units %}<span class="unit">{{ row.units }}</span>{% endif %}
   <span class="status status-{{ row.status }}">{{ row.status }}</span>
 </p>
+
+{% if selection_siblings %}
+<nav class="tabs" aria-label="Selection set">
+  {% for sib in selection_siblings %}
+    {% if sib.id == row.id %}
+    <span class="tab is-active">{{ sib.selection_set }}</span>
+    {% else %}
+    <a class="tab" href="{{ root }}results/{{ sib.page }}">{{ sib.selection_set }}</a>
+    {% endif %}
+  {% endfor %}
+</nav>
+{% endif %}
 
 {% if row.note or row.outcome or row.tags %}
 <section class="notes">
@@ -57,6 +69,13 @@
 <p class="empty">No plots were captured for this result.</p>
 {% endif %}
 
+{% if comparison_figures %}
+<section class="table-block">
+  <h2>Comparison figures</h2>
+  {{ figure_cards(comparison_figures, root) }}
+</section>
+{% endif %}
+
 <section class="table-block">
   <div class="table-head">
     <h2>Value</h2>
@@ -70,8 +89,8 @@
 
   <table class="detail">
     <tbody>
-      {% for label, label_latex, value in stats %}
-      <tr><th>{{ tex(label_latex, label) }}</th><td>{{ value }}</td></tr>
+      {% for label, label_latex, value, hint in stats %}
+      <tr><th>{{ tex(label_latex, label) }}{{ help_tip(hint) }}</th><td>{{ value }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -81,15 +100,37 @@
   <h2>How it was produced</h2>
   <table class="detail">
     <tbody>
-      {% for key, value, hint in provenance %}
+      {% for key, value, hint, href in provenance %}
       <tr>
         <th>{{ key }}{{ help_tip(hint) }}</th>
-        <td>{{ value }}</td>
+        <td>{% if href %}<a href="{{ href }}">{{ value }}</a>{% else %}{{ value }}{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </section>
+
+{% if nmax_windows %}
+<section class="table-block">
+  <h2>Other Nmax windows</h2>
+  <p class="hint">Same observable, potential, ħΩ window, selection, and filters; only the training Nmax range differs.</p>
+  <table class="results">
+    <thead><tr><th>{{ tex(nmax_latex, nmax_label) }}</th><th>Run</th><th>Setup</th><th>Value</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+      {% for sib in nmax_windows %}
+      <tr>
+        <td>{{ sib.nmax_range }}</td>
+        <td>{{ sib.run_stamp }}</td>
+        <td class="setup">{{ sib.setup }}</td>
+        <td>{{ tex(sib.value_latex, sib.value_label) }}</td>
+        <td><span class="status status-{{ sib.status }}">{{ sib.status }}</span></td>
+        <td>{% if sib.id != row.id %}<a href="{{ root }}results/{{ sib.page }}">open</a>{% else %}<em>this one</em>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
 
 {% if siblings %}
 <section class="table-block">
@@ -116,6 +157,9 @@
   <h2>Files</h2>
   <ul class="files">
     <li><a href="{{ bundle_href }}">bundle folder</a></li>
+    {% for item in library_files %}
+    <li><a href="{{ item.href }}">{{ item.name }}</a> <span class="hint">{{ item.label }}</span></li>
+    {% endfor %}
     {% for artifact in artifacts %}
     <li><a href="{{ artifact.href }}" download>{{ artifact.name }}</a> <span class="hint">{{ artifact.key }}</span></li>
     {% endfor %}

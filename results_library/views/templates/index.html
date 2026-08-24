@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import table_block %}
+{% from "macros.html" import selection_tab_bar, table_block %}
 {% block title %}Calculation results{% endblock %}
 
 {% block content %}
@@ -20,14 +20,19 @@
 </section>
 <p id="filter-empty" class="empty" hidden></p>
 
-{% if nuclei %}
+{% if nuclei or comparison_figures %}
 <section class="nuclei">
   {% for nucleus in nuclei %}
   <a class="chip" href="{{ root }}nucleus/{{ nucleus.slug }}.html">{{ nucleus.label }}
     <span class="chip-count">{{ nucleus.count }}</span></a>
   {% endfor %}
+  {% if comparison_figures %}
+  <a class="chip" href="{{ root }}comparisons.html">Comparisons
+    <span class="chip-count">{{ comparison_figures | length }}</span></a>
+  {% endif %}
 </section>
 {% endif %}
 
+{{ selection_tab_bar(selection_tabs, default_selection) }}
 {{ table_block(rows, "All results", "all", root, exports) }}
 {% endblock %}

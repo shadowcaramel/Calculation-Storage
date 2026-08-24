@@ -26,6 +26,10 @@
   <div class="bar">
     <nav class="crumbs">
       <a href="{{ root }}index.html">All results</a>
+      {%- if has_comparisons %}
+      <span class="sep">·</span>
+      <a href="{{ root }}comparisons.html">Comparisons</a>
+      {%- endif %}
       {%- block crumbs %}{% endblock %}
     </nav>
     <button type="button" class="theme-toggle" id="theme-toggle"

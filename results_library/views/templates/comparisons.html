@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "macros.html" import figure_cards %}
+{% block title %}Comparisons{% endblock %}
+
+{% block crumbs %}
+  <span class="sep">/</span><span>Comparisons</span>
+{% endblock %}
+
+{% block content %}
+<h1>Comparisons</h1>
+<p class="hint">Hand-curated figures that span several stored results. Declared in
+  <code>comparisons.toml</code> at the library root; the pipeline never overwrites them.</p>
+
+{% if comparison_figures %}
+{{ figure_cards(comparison_figures, root) }}
+{% else %}
+<p class="empty">No comparison figures are declared yet.</p>
+{% endif %}
+{% endblock %}

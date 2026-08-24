@@ -280,6 +280,7 @@ class Variant(_Base):
     filter_criteria: List[str] = Field(default_factory=list)
     reference_convention: Dict[str, Any] = Field(default_factory=dict)
     config_name: Optional[str] = None
+    potential: Optional[str] = None
     variant_hash: Optional[str] = None
 
     def compute_hash(self) -> str:
@@ -292,11 +293,20 @@ class Variant(_Base):
         return self.model_copy(update={"variant_hash": self.compute_hash()})
 
 
+class StoredFile(_Base):
+    """A file copied into the library (content-addressed under ``sources/``)."""
+
+    name: str
+    sha256: str
+    path: str
+
+
 class Provenance(_Base):
     """Where the number came from.
 
     ``source_workbook`` and ``source_sheet`` are taken from the config paths the
     pipeline already uses; nothing is scraped from inside the workbook.
+    ``config_snapshot`` is the frozen config copied into this bundle.
     """
 
     code_version: Optional[str] = None
@@ -305,6 +315,9 @@ class Provenance(_Base):
     config_snapshot: Optional[str] = None
     source_workbook: Optional[str] = None
     source_sheet: Optional[str] = None
+    source_file: Optional[StoredFile] = None
+    prepared_file: Optional[StoredFile] = None
+    provenance_check: Optional[Dict[str, Any]] = None
 
 
 # ---------------------------------------------------------------------------

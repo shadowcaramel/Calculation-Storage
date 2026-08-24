@@ -27,6 +27,8 @@ COLUMN_HEADERS: dict[str, tuple[str, str]] = {
     "err_high": ("$+\\sigma$", "err_high"),
     "N_models": ("$N_{\\mathrm{models}}$", "N_models"),
     "Nmax_final": ("$N_{\\max}^{u}$", "Nmax_final"),
+    "nmax_range": ("$N_{\\max}$", "Nmax"),
+    "potential": ("Potential", "Potential"),
     "units": ("Units", "Units"),
     "status": ("Status", "Status"),
     "id": ("Id", "Id"),
@@ -35,9 +37,10 @@ COLUMN_HEADERS: dict[str, tuple[str, str]] = {
 DEFAULT_COLUMNS: tuple[str, ...] = (
     "state",
     "observable",
+    "potential",
     "value",
     "N_models",
-    "Nmax_final",
+    "nmax_range",
 )
 
 #: Columns rendered in math mode in LaTeX output.
@@ -103,7 +106,7 @@ def _prepare_cell(row: Mapping[str, Any], column: str, for_latex: bool) -> str:
 
 
 def _alignment(columns: Sequence[str]) -> str:
-    return "".join("l" if column in ("state", "observable", "id") else "c"
+    return "".join("l" if column in ("state", "observable", "potential", "id") else "c"
                    for column in columns)
 
 

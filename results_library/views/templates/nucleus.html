@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import table_block %}
+{% from "macros.html" import figure_cards, selection_tab_bar, table_block %}
 {% block title %}{{ nucleus }} results{% endblock %}
 
 {% block crumbs %}
@@ -17,6 +17,15 @@
   <span id="row-count" class="count"></span>
 </section>
 <p id="filter-empty" class="empty" hidden></p>
+
+{{ selection_tab_bar(selection_tabs, default_selection) }}
+
+{% if comparison_figures %}
+<section class="table-block">
+  <h2>Comparison figures</h2>
+  {{ figure_cards(comparison_figures, root) }}
+</section>
+{% endif %}
 
 {% for group in groups %}
 {{ table_block(group.rows, group.heading, group.table_id, root, group.exports, group.heading_latex) }}

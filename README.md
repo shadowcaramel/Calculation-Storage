@@ -16,20 +16,24 @@ LOCAL DISK (heavy, prunable, not synced)
   ML output/<run>/            models, scalers, raw predictions
 
 SHARED LIBRARY (light, synced, not git)
-  bundles/<id>/               result.json + plot + plot data   <- SOURCE OF TRUTH
+  bundles/<id>/               result.json + plot + plot data + config snapshot
+  sources/<sha256[:16]>/      shared copies of the original and prepared workbooks
   annotations.toml            notes, status, tags (hand-edited) <- SOURCE OF TRUTH
+  comparisons.toml            multi-result figures (hand-edited, never overwritten)
+  comparisons/                figure files named by comparisons.toml
   catalog.parquet             GENERATED
   catalog.db                  GENERATED
   site/index.html             GENERATED
   calculation_results.xlsx    GENERATED
 ```
 
-Only the first two entries under the shared library are inputs. Everything else
-is regenerated from them, so the generated files can be deleted at any time
-without losing anything.
+Bundles, `sources/`, `annotations.toml`, `comparisons.toml`, and the comparison
+files are inputs. Everything else is regenerated from them, so the generated
+files can be deleted at any time without losing anything.
 
-`annotations.toml` is **never written** by any tool here. That is what makes the
-machine layer safely disposable.
+`annotations.toml` is **never written** by any tool here. `comparisons.toml` is
+the same: the pipeline never overwrites it. That is what makes the machine
+layer safely disposable.
 
 **Do not put the library data in git.** It is mostly binary plots that would
 bloat history irreversibly, and a `.git` directory inside a synced folder risks
@@ -112,6 +116,40 @@ main reason keeping probing runs is worth anything.
 The site hides `probing` results by default, and the workbook omits them unless
 you pass `--include-probing`.
 
+When more than one selection set was captured for the same trained ensemble
+(same run, family, potential, and training bounds), the index and nucleus pages
+show a tab bar. The default tab is `final`. Comparing filters means capturing
+them on purpose, for example `selection_sets = ["all_models", "final", "conv_Ethr"]`
+in `[results_library]` / `[postprocessing.summary]`; extra sets are not captured
+automatically.
+
+The main table's Nmax column is the **training window** `[min, max]`, sorted by
+the upper bound. `Nmax_final` (the readout) stays on the detail page.
+
+The nucleon-nucleon potential (`identity.potential`, stored on `variant`) appears
+after Observable. Older bundles that lack it show as unspecified.
+
+## Comparison figures
+
+Figures that span several results live next to the annotations, not inside a
+bundle. Create `comparisons.toml` in the library root and drop files under
+`comparisons/`:
+
+```toml
+[[figure]]
+title = "Isospin triplet"
+file = "comparisons/isospin_triplet.png"
+caption = "Daejeon16, same Nmax window."
+results = [
+  "6He/0p-T1-n2/Erel/2026-08-18_15-02-11_a1b2c3d4",
+  "6Li/1p-T0-n1/Erel/2026-08-18_15-02-11_b2c3d4e5",
+]
+```
+
+Rebuild the site. A Comparisons page is linked from the index; nucleus and
+result pages list the figures that mention them. The pipeline never writes this
+file.
+
 ## Typeset formulas
 
 States, observables, values, and the axis names are typeset in the browser by
@@ -132,11 +170,11 @@ never touches them.
 The asymmetric-uncertainty form is assembled for you:
 
 ```latex
-\begin{tabular}{llccc}
+\begin{tabular}{lllccc}
 \toprule
-State & Observable & Value & $N_{\mathrm{models}}$ & $N_{\max}^{u}$ \\
+State & Observable & Potential & Value & $N_{\mathrm{models}}$ & $N_{\max}$ \\
 \midrule
-$(5/2^{+},\ T{=}5/2)$ & Erel & $2.639^{+0.002}_{-0.002}$ & 744 & 8 \\
+$(5/2^{+},\ T{=}5/2)$ & Erel & Daejeon16 & $2.639^{+0.002}_{-0.002}$ & 744 & [2, 6] \\
 \bottomrule
 \end{tabular}
 ```

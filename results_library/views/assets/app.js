@@ -79,6 +79,24 @@
   var statusSelect = document.getElementById("filter-status");
   var hideProbing = document.getElementById("hide-probing");
   var countLabel = document.getElementById("row-count");
+  var selectionTabs = document.querySelector("[data-selection-tabs]");
+  var activeSelection = null;
+
+  if (selectionTabs) {
+    var current = selectionTabs.querySelector(".is-active[data-selection-tab]");
+    if (!current) current = selectionTabs.querySelector("[data-selection-tab]");
+    if (current) activeSelection = current.getAttribute("data-selection-tab");
+    selectionTabs.querySelectorAll("[data-selection-tab]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        selectionTabs.querySelectorAll("[data-selection-tab]").forEach(function (other) {
+          other.classList.remove("is-active");
+        });
+        button.classList.add("is-active");
+        activeSelection = button.getAttribute("data-selection-tab");
+        applyFilters();
+      });
+    });
+  }
 
   function filterableRows() {
     return Array.prototype.slice.call(
@@ -105,12 +123,21 @@
       if (skipProbing && status === "probing" && wantedStatus !== "probing") {
         visible = false;
       }
+      if (activeSelection) {
+        var selection = row.getAttribute("data-selection") || "";
+        if (selection !== activeSelection) visible = false;
+      }
 
       row.hidden = !visible;
       if (visible) shown += 1;
     });
 
     var total = filterableRows().length;
+    if (activeSelection) {
+      total = filterableRows().filter(function (row) {
+        return (row.getAttribute("data-selection") || "") === activeSelection;
+      }).length;
+    }
     if (countLabel) {
       countLabel.textContent =
         shown === total ? total + " results" : shown + " of " + total + " results";
