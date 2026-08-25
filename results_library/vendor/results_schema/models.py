@@ -307,6 +307,8 @@ class Provenance(_Base):
     ``source_workbook`` and ``source_sheet`` are taken from the config paths the
     pipeline already uses; nothing is scraped from inside the workbook.
     ``config_snapshot`` is the frozen config copied into this bundle.
+    ``source_files`` are the collaborator dumps; ``source_file`` is the extracted
+    pivot used for Phase 0 conversion.
     """
 
     code_version: Optional[str] = None
@@ -316,6 +318,7 @@ class Provenance(_Base):
     source_workbook: Optional[str] = None
     source_sheet: Optional[str] = None
     source_file: Optional[StoredFile] = None
+    source_files: List[StoredFile] = Field(default_factory=list)
     prepared_file: Optional[StoredFile] = None
     provenance_check: Optional[Dict[str, Any]] = None
 

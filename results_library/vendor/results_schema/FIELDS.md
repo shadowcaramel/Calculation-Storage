@@ -134,9 +134,10 @@ collide, so the reference feeds both the observable slug and `variant_hash`.
 | `config_snapshot` | 1 | | str | Filename of the frozen config **inside this bundle** (`config_snapshot.toml`). Copied from the run directory at capture so a result can be re-run after the run dir is pruned. Older records may name a file that existed only in the run dir. |
 | `source_workbook` | 1 | | str | Prepared workbook basename, taken from config paths. |
 | `source_sheet` | 1 | | str | Sheet within that workbook. |
-| `source_file` | 1 | | table | Shared library copy of the original source workbook: `{name, sha256, path}` under `sources/<sha256[:16]>/`. |
+| `source_file` | 1 | | table | Shared library copy of the extracted pivot (`paths.pivot_source`): `{name, sha256, path}` under `sources/<sha256[:16]>/`. Older records used this for the only original workbook they stored. |
+| `source_files` | 1 | | list[table] | Shared library copies of the collaborator MFDn/NCSM dumps (`paths.source_files`), each the same shape as `source_file`. When the config omits `source_files`, writers store `[source_file]` so readers always see a list. Older records lack this field; fall back to `[source_file]`. |
 | `prepared_file` | 1 | | table | Shared library copy of the prepared long workbook, same shape as `source_file`. |
-| `provenance_check` | 1 | | table | Summary of the optional S→P numerical gate (`verdict`, distinctive/row counts). Absent when the check was off. |
+| `provenance_check` | 1 | | table | Summary of the optional S→P numerical gate (`verdict`, distinctive/row counts). `source` is the first dump checked; `sources` lists every dump. Absent when the check was off. |
 
 Nothing in `provenance` is scraped from inside a workbook; these come from the
 config the pipeline already reads.

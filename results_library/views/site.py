@@ -22,6 +22,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional
 import pandas as pd
 
 from results_library.annotations import STATUSES
+from results_library.catalog import LIST_SEPARATOR
 from results_library.comparisons import (
     ComparisonFigure,
     figures_for_nucleus,
@@ -85,7 +86,8 @@ _PROVENANCE_FIELDS = (
     ("run_dir", "Run directory"),
     ("source_workbook", "Prepared workbook (basename)"),
     ("source_sheet", "Source sheet"),
-    ("source_file_path", "Original source file"),
+    ("source_files_name", "Original calculation file(s)"),
+    ("source_file_path", "Extracted pivot"),
     ("prepared_file_path", "Prepared data file"),
     ("config_snapshot", "Config snapshot"),
     ("provenance_check_verdict", "S→P check"),
@@ -100,9 +102,13 @@ _PROVENANCE_HINTS = {
         "Fingerprint of the setup (bounds, filters, selection, reference "
         "convention), not of this run. Identical setups share it."
     ),
+    "source_files_name": (
+        "Content-addressed copies of the collaborator MFDn/NCSM dumps, shared "
+        "across results that used the same files."
+    ),
     "source_file_path": (
-        "Content-addressed copy of the original MFDn/pivot workbook, shared "
-        "across results that used the same file."
+        "Content-addressed copy of the extracted pivot workbook used for "
+        "conversion, when that file is distinct from the dumps."
     ),
     "prepared_file_path": (
         "Content-addressed copy of the long Excel the pipeline actually read."
@@ -112,8 +118,8 @@ _PROVENANCE_HINTS = {
     ),
     "provenance_check_verdict": (
         "Numerical check that distinctive values in the prepared workbook "
-        "appear in the source, with each (Nmax, ħΩ, value) recoverable on a "
-        "source row or column."
+        "appear in the collaborator dump(s), with each (Nmax, ħΩ, value) "
+        "recoverable on a source row or column of one of those files."
     ),
 }
 
@@ -362,29 +368,72 @@ def _nmax_windows(
     ]
 
 
+def _split_joined(value: Any) -> List[str]:
+    if value in (None, ""):
+        return []
+    try:
+        if pd.isna(value):
+            return []
+    except (TypeError, ValueError):
+        pass
+    return [part for part in str(value).split(LIST_SEPARATOR) if part]
+
+
+def _extract_is_distinct_dump(row: Mapping[str, Any]) -> bool:
+    extract_hash = row.get("source_file_sha256")
+    if not extract_hash:
+        return bool(row.get("source_file_path"))
+    return str(extract_hash) not in _split_joined(row.get("source_files_sha256"))
+
+
 def _library_files(row: Mapping[str, Any], page_path: str) -> List[Dict[str, str]]:
     files: List[Dict[str, str]] = []
-    for key, label in (
-        ("source_file_path", "original source workbook"),
-        ("prepared_file_path", "prepared workbook"),
-    ):
-        path = row.get(key)
-        if not path:
-            continue
-        name_key = key.replace("_path", "_name")
+    dump_paths = _split_joined(row.get("source_files_path"))
+    dump_names = _split_joined(row.get("source_files_name"))
+    for index, path in enumerate(dump_paths):
+        name = dump_names[index] if index < len(dump_names) else Path(str(path)).name
         files.append(
             {
-                "label": label,
-                "name": str(row.get(name_key) or Path(str(path)).name),
+                "label": "original calculation file",
+                "name": name,
                 "href": _href(page_path, str(path)),
+            }
+        )
+    if _extract_is_distinct_dump(row):
+        extract_path = row.get("source_file_path")
+        if extract_path:
+            files.append(
+                {
+                    "label": "extracted pivot",
+                    "name": str(row.get("source_file_name") or Path(str(extract_path)).name),
+                    "href": _href(page_path, str(extract_path)),
+                }
+            )
+    prepared_path = row.get("prepared_file_path")
+    if prepared_path:
+        files.append(
+            {
+                "label": "prepared workbook",
+                "name": str(
+                    row.get("prepared_file_name") or Path(str(prepared_path)).name
+                ),
+                "href": _href(page_path, str(prepared_path)),
             }
         )
     return files
 
 
 def _provenance_href(row: Mapping[str, Any], key: str, page_path: str) -> Optional[str]:
-    if key in ("source_file_path", "prepared_file_path"):
-        path = row.get(key)
+    if key == "source_files_name":
+        paths = _split_joined(row.get("source_files_path"))
+        if len(paths) == 1:
+            return _href(page_path, paths[0])
+        return None
+    if key == "source_file_path":
+        path = row.get("source_file_path")
+        return _href(page_path, str(path)) if path else None
+    if key == "prepared_file_path":
+        path = row.get("prepared_file_path")
         return _href(page_path, str(path)) if path else None
     if key == "config_snapshot":
         artifact = row.get("artifact_config_snapshot")
@@ -648,6 +697,8 @@ class SiteBuilder:
             ]
             provenance = []
             for key, label in _PROVENANCE_FIELDS:
+                if key == "source_file_path" and not _extract_is_distinct_dump(row):
+                    continue
                 value = row.get(key)
                 if value in (None, ""):
                     continue

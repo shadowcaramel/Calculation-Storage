@@ -20,7 +20,7 @@ import logging
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 import pandas as pd
 
@@ -37,6 +37,25 @@ CATALOG_TABLE = "results"
 #: List-valued fields are joined for storage, because SQLite has no array type
 #: and a single string keeps the parquet and SQLite views identical.
 LIST_SEPARATOR = "; "
+
+
+def _stored_file_entries(value: Any) -> List[Dict[str, Any]]:
+    """Normalize a StoredFile or a list of them into dicts."""
+    if not value:
+        return []
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def source_file_entries(provenance: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    """Collaborator dumps, falling back to the single ``source_file`` on old records."""
+    entries = _stored_file_entries(provenance.get("source_files"))
+    if entries:
+        return entries
+    return _stored_file_entries(provenance.get("source_file"))
 
 
 @dataclass
@@ -261,6 +280,16 @@ def flatten_record(
             row[f"{kind}_path"] = entry.get("path")
             row[f"{kind}_name"] = entry.get("name")
             row[f"{kind}_sha256"] = entry.get("sha256")
+    dumps = source_file_entries(provenance)
+    row["source_files_path"] = LIST_SEPARATOR.join(
+        str(item.get("path") or "") for item in dumps if item.get("path")
+    )
+    row["source_files_name"] = LIST_SEPARATOR.join(
+        str(item.get("name") or "") for item in dumps if item.get("name")
+    )
+    row["source_files_sha256"] = LIST_SEPARATOR.join(
+        str(item.get("sha256") or "") for item in dumps if item.get("sha256")
+    )
     check = provenance.get("provenance_check")
     if isinstance(check, dict):
         row["provenance_check_verdict"] = check.get("verdict")

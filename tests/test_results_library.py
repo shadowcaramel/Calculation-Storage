@@ -354,6 +354,7 @@ class TestCatalog:
         row = frame.iloc[0]
         assert row["source_file_path"] == "sources/abcd1234abcd1234/raw.xlsx"
         assert row["prepared_file_name"] == "long.xlsx"
+        assert row["source_files_name"] == "raw.xlsx"
         assert row["provenance_check_verdict"] == "pass"
         assert row["provenance_check_n_rows_matched"] == 4
 
@@ -597,6 +598,55 @@ class TestSite:
         assert 'id="hide-probing" checked' not in html
         assert "(0⁺, T=1)(2)" in html or "(0" in html
         assert "E\u1d63\u2091\u2097" in html
+
+    def test_multiple_source_files_listed_on_detail_page(self, tmp_path):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        library = tmp_path / "multi-source"
+        library.mkdir()
+        record = _he6_record(
+            "src",
+            provenance=Provenance(
+                source_file=StoredFile(
+                    name="extract.xlsx",
+                    sha256="ee" * 32,
+                    path="sources/eeeeeeeeeeeeeeee/extract.xlsx",
+                ),
+                source_files=[
+                    StoredFile(
+                        name="dump_a.xlsx",
+                        sha256="aa" * 32,
+                        path="sources/aaaaaaaaaaaaaaaa/dump_a.xlsx",
+                    ),
+                    StoredFile(
+                        name="dump_b.xlsx",
+                        sha256="bb" * 32,
+                        path="sources/bbbbbbbbbbbbbbbb/dump_b.xlsx",
+                    ),
+                ],
+                prepared_file=StoredFile(
+                    name="long.xlsx",
+                    sha256="cc" * 32,
+                    path="sources/cccccccccccccccc/long.xlsx",
+                ),
+            ),
+        )
+        _place(library, record, files={})
+        frame, _ = build_catalog(library)
+        row = frame.iloc[0]
+        assert "dump_a.xlsx" in row["source_files_name"]
+        assert "dump_b.xlsx" in row["source_files_name"]
+        site = build_site(library, frame)
+        html = (site / "results" / (row["id"].replace("/", "__") + ".html")).read_text(
+            encoding="utf-8"
+        )
+        assert "dump_a.xlsx" in html
+        assert "dump_b.xlsx" in html
+        assert "original calculation file" in html
+        assert "extract.xlsx" in html
+        assert "extracted pivot" in html
+        assert "long.xlsx" in html
 
     def test_selection_set_tabs_default_to_final(self, tmp_path):
         pytest.importorskip("jinja2")

@@ -17,7 +17,7 @@ LOCAL DISK (heavy, prunable, not synced)
 
 SHARED LIBRARY (light, synced, not git)
   bundles/<id>/               result.json + plot + plot data + config snapshot
-  sources/<sha256[:16]>/      shared copies of the original and prepared workbooks
+  sources/<sha256[:16]>/      shared copies of original calculation file(s) and the prepared workbook
   annotations.toml            notes, status, tags (hand-edited) <- SOURCE OF TRUTH
   comparisons.toml            multi-result figures (hand-edited, never overwritten)
   comparisons/                figure files named by comparisons.toml
@@ -128,6 +128,11 @@ the upper bound. `Nmax_final` (the readout) stays on the detail page.
 
 The nucleon-nucleon potential (`identity.potential`, stored on `variant`) appears
 after Observable. Older bundles that lack it show as unspecified.
+
+The detail page Files list links every original calculation file copied into
+`sources/` (one or many collaborator dumps). If the extracted pivot is a
+different file, it is listed separately from those dumps, ahead of the prepared
+long workbook.
 
 ## Comparison figures
 
