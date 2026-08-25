@@ -19,7 +19,7 @@ look it up here.
    was computed (uncertainty definition, aggregation, transition direction) is
    itself a field, so values from different months are never silently compared.
 
-Current version: **1**
+Current version: **2**
 
 ---
 
@@ -28,7 +28,7 @@ Current version: **1**
 | Field | Since | Retired | Type | Meaning |
 | --- | --- | --- | --- | --- |
 | `schema_version` | 1 | | int | Version of this record's layout. |
-| `id` | 1 | | str | `{nucleus}/{state}/{observable}/{run_stamp}`. Stable forever; notes and links hang off it. |
+| `id` | 1 | | str | `{nucleus}/{state}/{observable}/{run_stamp}` in v1. From v2: `{nucleus}/{state}/{observable}/{run_stamp}/{selection_stamp}`. Stable forever; notes and links hang off it. |
 | `family` | 1 | | str | First three id segments. Groups all variants of one physics question. |
 | `subject` | 1 | | table | What the result is about. See below. |
 | `reference` | 1 | | table | What a relative quantity is measured against. Absent for absolute quantities. |
@@ -121,8 +121,9 @@ collide, so the reference feeds both the observable slug and `variant_hash`.
 | `filter_criteria` | 1 | | list[str] | Filtering criteria applied. |
 | `reference_convention` | 1 | | table | Echo of `reference.convention`, so the hash covers it. |
 | `config_name` | 1 | | str | Pipeline configuration name, e.g. `0p2/Nmax=[4,18]_hOmega=[8,50]`. |
-| `potential` | 1 | | str | Nucleon-nucleon interaction of the source data, e.g. `Daejeon16`. Declared in `[identity].potential`; hashed with the rest of this block so two identical extrapolations on different potentials never share a fingerprint. Not part of the result id. Older records lack it. |
-| `variant_hash` | 1 | | str | First 8 hex chars of a SHA-256 over the rest of this block. Identical setups across runs share a hash. |
+| `potential` | 1 | | str | Nucleon-nucleon interaction of the source data, e.g. `Daejeon16`. Declared in `[identity].potential`; hashed with the rest of this block so two identical extrapolations on different potentials never share a fingerprint. Not an id path segment of its own. Older records lack it. |
+| `variant_hash` | 1 | | str | First 8 hex chars of a SHA-256 over the rest of this block except `cohort_hash`. Identical setups across runs share a hash. In v1 this was also the suffix of the fourth id segment. |
+| `cohort_hash` | 2 | | str | First 8 hex chars of a SHA-256 over `bounds`, `reference_convention`, `config_name`, and `potential`. Shared by every selection set of the same trained ensemble, so they share a parent folder. The fourth id segment is `{YYYY-MM-DD_HH-MM-SS}_{cohort_hash}`; the fifth is `{selection_set}_{variant_hash}`. |
 
 ## `provenance`
 

@@ -27,6 +27,7 @@ Stdlib only, so the early config check can run without pydantic installed.
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from typing import Any, Mapping, Optional, Sequence
 
 TRANSITION_SEP = "--to--"
@@ -256,53 +257,84 @@ def observable_slug(
 # Result ids
 # ---------------------------------------------------------------------------
 
+#: ``YYYY-MM-DD_HH-MM-SS`` at the start of a run-stamp segment.
+_RUN_DATETIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})")
+#: Full v1 leaf segment: datetime plus the 8-char variant hash.
+_STAMP_WITH_HASH_RE = re.compile(
+    r"^(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})_([0-9a-fA-F]{8})$"
+)
+
+
+def _require_segment(value: Any, label: str) -> str:
+    text = str(value) if value is not None else ""
+    if not text or "/" in text:
+        raise ValueError(
+            f"Result id {label} must be a non-empty segment without '/', "
+            f"got {value!r}"
+        )
+    return text
+
+
+def build_selection_stamp(
+    selection_set: Optional[str], variant_hash: Optional[str]
+) -> str:
+    """Fifth id segment: human-readable selection name plus the variant digest."""
+    name = sanitize_run_stamp(selection_set or "unknown")
+    digest = str(variant_hash or "nohash")
+    return f"{name}_{digest}"
+
+
 def build_result_id(
     nucleus: str,
     subject_slug: str,
     observable_slug_value: str,
     run_stamp: str,
+    selection_stamp: str,
 ) -> str:
-    """Assemble ``{nucleus}/{state}/{observable}/{run_stamp}``."""
-    for segment, label in (
-        (nucleus, "nucleus"),
-        (subject_slug, "subject slug"),
-        (observable_slug_value, "observable slug"),
-        (run_stamp, "run stamp"),
-    ):
-        if not segment or "/" in str(segment):
-            raise ValueError(
-                f"Result id {label} must be a non-empty segment without '/', "
-                f"got {segment!r}"
-            )
-    return f"{nucleus}/{subject_slug}/{observable_slug_value}/{run_stamp}"
+    """Assemble ``{nucleus}/{state}/{observable}/{run_stamp}/{selection_stamp}``."""
+    return "/".join(
+        (
+            _require_segment(nucleus, "nucleus"),
+            _require_segment(subject_slug, "subject slug"),
+            _require_segment(observable_slug_value, "observable slug"),
+            _require_segment(run_stamp, "run stamp"),
+            _require_segment(selection_stamp, "selection stamp"),
+        )
+    )
+
+
+def _id_parts(result_id: str) -> list[str]:
+    parts = str(result_id).split("/")
+    if len(parts) not in (4, 5):
+        raise ValueError(
+            f"Result id must have 4 or 5 segments "
+            f"(nucleus/state/observable/run_stamp[/selection_stamp]), "
+            f"got {result_id!r}"
+        )
+    return parts
 
 
 def family_of(result_id: str) -> str:
-    """The grouping key: everything except the run stamp."""
-    parts = result_id.split("/")
-    if len(parts) != 4:
-        raise ValueError(
-            f"Result id must have 4 segments "
-            f"(nucleus/state/observable/run_stamp), got {result_id!r}"
-        )
-    return "/".join(parts[:3])
+    """The grouping key: the first three segments (nucleus/state/observable)."""
+    return "/".join(_id_parts(result_id)[:3])
 
 
 def parse_result_id(result_id: str) -> dict[str, Any]:
-    """Split a result id into its parts, parsing the subject slug."""
-    parts = result_id.split("/")
-    if len(parts) != 4:
-        raise ValueError(
-            f"Result id must have 4 segments "
-            f"(nucleus/state/observable/run_stamp), got {result_id!r}"
-        )
-    nucleus, subject, observable, run_stamp = parts
+    """Split a result id into its parts, parsing the subject slug.
+
+    Schema v2 ids have five segments. Schema v1 ids have four; ``selection_stamp``
+    is then ``None``.
+    """
+    parts = _id_parts(result_id)
+    nucleus, subject, observable, run_stamp = parts[:4]
+    selection_stamp = parts[4] if len(parts) == 5 else None
     return {
         "nucleus": nucleus,
         "subject_slug": subject,
         "subject": parse_subject_slug(subject),
         "observable_slug": observable,
         "run_stamp": run_stamp,
+        "selection_stamp": selection_stamp,
         "family": "/".join(parts[:3]),
     }
 
@@ -323,6 +355,81 @@ def sanitize_run_stamp(text: str) -> str:
     if not cleaned:
         raise ValueError(f"Run stamp {text!r} does not reduce to a usable segment")
     return cleaned
+
+
+def split_run_stamp(stamp: str) -> tuple[str, Optional[str]]:
+    """Split ``YYYY-MM-DD_HH-MM-SS_{8hex}`` into ``(base, hash)``.
+
+    If the stamp is not that shape, return ``(stamp, None)``.
+    """
+    match = _STAMP_WITH_HASH_RE.fullmatch(str(stamp))
+    if match is None:
+        return str(stamp), None
+    return match.group(1), match.group(2)
+
+
+def parse_run_datetime(run_stamp: Optional[str]) -> Optional[datetime]:
+    """Parse the calculation timestamp from a run-stamp segment.
+
+    Reads ``YYYY-MM-DD_HH-MM-SS`` at the start; any ``_{hash}`` suffix is ignored.
+    """
+    if not run_stamp:
+        return None
+    match = _RUN_DATETIME_RE.match(str(run_stamp))
+    if match is None:
+        return None
+    date, hour, minute, second = match.groups()
+    try:
+        return datetime.strptime(
+            f"{date} {hour}:{minute}:{second}", "%Y-%m-%d %H:%M:%S"
+        )
+    except ValueError:
+        return None
+
+
+def format_run_date_label(run_stamp: Optional[str]) -> Optional[str]:
+    """Human date for tables, e.g. ``25 Aug 2026``. Time is omitted."""
+    parsed = parse_run_datetime(run_stamp)
+    if parsed is None:
+        return None
+    return f"{parsed.day} {parsed.strftime('%b')} {parsed.year}"
+
+
+def run_datetime_sort_key(run_stamp: Optional[str]) -> Optional[str]:
+    """ISO-8601 datetime string for sorting, including the hidden time."""
+    parsed = parse_run_datetime(run_stamp)
+    if parsed is None:
+        return None
+    return parsed.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def v2_id_from_v1(
+    result_id: str,
+    *,
+    selection_set: Optional[str],
+    cohort_hash: Optional[str],
+    variant_hash: Optional[str],
+) -> str:
+    """Rewrite a 4-segment v1 id into the v2 five-segment form.
+
+    Already-five-segment ids are returned unchanged. Other shapes are left as-is.
+    """
+    parts = str(result_id).split("/")
+    if len(parts) != 4:
+        return result_id
+    nucleus, subject, observable, stamp = parts
+    base, old_hash = split_run_stamp(stamp)
+    if old_hash is not None and cohort_hash:
+        run_stamp = f"{base}_{cohort_hash}"
+    else:
+        run_stamp = stamp
+    return build_result_id(
+        nucleus,
+        subject,
+        observable,
+        run_stamp,
+        build_selection_stamp(selection_set, variant_hash),
+    )
 
 
 def declared_states_are_unique(

@@ -191,7 +191,7 @@ def _row_dict(record: Mapping[str, Any]) -> Dict[str, Any]:
             "nucleus", "nucleus_label", "state_label", "state_slug", "observable",
             "observable_label", "observable_slug", "status", "title", "note",
             "outcome", "tags", "selection_set", "config_name", "run_stamp", "id",
-            "setup_label", "potential",
+            "setup_label", "potential", "run_date_label",
         )
     )
     row["cohort_key"] = _cohort_key(row)
@@ -521,8 +521,14 @@ class SiteBuilder:
         environment.globals["has_comparisons"] = bool(figures)
 
         rows = [_row_dict(record) for record in self.catalog.to_dict("records")]
-        rows.sort(key=lambda r: (str(r.get("nucleus") or ""), str(r.get("family") or ""),
-                                 str(r.get("run_stamp") or "")))
+        rows.sort(
+            key=lambda r: (
+                str(r.get("nucleus") or ""),
+                str(r.get("family") or ""),
+                str(r.get("id") or ""),
+            )
+        )
+        rows.sort(key=lambda r: str(r.get("run_datetime") or ""), reverse=True)
         rows_by_id = {str(row.get("id") or ""): row for row in rows}
 
         self._write_exports(rows)

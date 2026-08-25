@@ -89,6 +89,7 @@
   <table class="results" data-filterable="true">
     <thead>
       <tr>
+        <th data-sort="text" class="sorted-desc">Date</th>
         <th data-sort="text">Nucleus</th>
         <th data-sort="text">State</th>
         <th data-sort="text">Observable</th>
@@ -105,6 +106,7 @@
       <tr data-status="{{ row.status }}" data-search="{{ row.search_text }}"
           data-selection="{{ row.selection_set or '' }}"
           data-cohort="{{ row.cohort_key }}">
+        <td data-value="{{ row.run_datetime or '' }}">{{ row.run_date_label or "" }}</td>
         <td>{{ row.nucleus_label or row.nucleus }}</td>
         <td data-value="{{ row.state_label or row.state_slug }}">{{ tex(row.state_latex, row.state_label or row.state_slug) }}</td>
         <td data-value="{{ row.observable_label or row.observable }}">{{ tex(row.observable_latex, row.observable_label or row.observable) }}{% if row.units %} <span class="unit">({{ row.units }})</span>{% endif %}</td>

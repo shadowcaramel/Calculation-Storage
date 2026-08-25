@@ -82,3 +82,7 @@ def apply_migrations(record: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]
         applied.append(f"v{version - 1}->v{version}")
 
     return record, applied
+
+
+# Register built-in upgrades. Imported last so :func:`register` is defined.
+from . import v1_selection_folders as _v1_selection_folders  # noqa: E402,F401

@@ -123,8 +123,27 @@ them on purpose, for example `selection_sets = ["all_models", "final", "conv_Eth
 in `[results_library]` / `[postprocessing.summary]`; extra sets are not captured
 automatically.
 
-The main table's Nmax column is the **training window** `[min, max]`, sorted by
-the upper bound. `Nmax_final` (the readout) stays on the detail page.
+The main table's Date column is the calculation day (`25 Aug 2026`), taken from
+the run stamp. Rows sort newest-first, using the hidden time of day as a
+tie-breaker. Nmax is the **training window** `[min, max]`. `Nmax_final` (the
+readout) stays on the detail page.
+
+Selection sets of one trained ensemble share a parent folder:
+
+```text
+bundles/{nucleus}/{state}/{observable}/{YYYY-MM-DD_HH-MM-SS}_{cohort_hash}/{selection_set}_{variant_hash}/
+```
+
+The site still shows a tab bar when more than one set was captured. Older
+four-segment bundles (`.../{stamp}_{variant_hash}/` with no selection subfolder)
+need a one-shot rewrite:
+
+```bash
+python -m results_library.cli migrate-selection-folders --library "G:/Shared drives/Calculation results/Calculation storage"
+```
+
+That command also rewrites matching keys in `annotations.toml` and
+`comparisons.toml`. Catalog/site builds never move files.
 
 The nucleon-nucleon potential (`identity.potential`, stored on `variant`) appears
 after Observable. Older bundles that lack it show as unspecified.

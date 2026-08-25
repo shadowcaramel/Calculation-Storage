@@ -22,6 +22,6 @@ if _VENDOR.is_dir() and str(_VENDOR) not in sys.path:
 
 #: Highest ``schema_version`` this tooling understands. A record above this is
 #: reported by the lint pass instead of being silently misread.
-SUPPORTED_SCHEMA_VERSION = 1
+SUPPORTED_SCHEMA_VERSION = 2
 
 __all__ = ["SUPPORTED_SCHEMA_VERSION"]

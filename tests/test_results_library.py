@@ -230,8 +230,24 @@ class TestMigrations:
         record = json.loads(_he6_record("stamp").to_json())
         upgraded, applied = apply_migrations(record)
         assert applied == []
-        assert upgraded["schema_version"] == 1
-        assert latest_version() == 1
+        assert upgraded["schema_version"] == 2
+        assert latest_version() == 2
+
+    def test_v1_four_segment_id_gains_selection_folder(self):
+        record = json.loads(_he6_record("2026-08-18_15-02-11").to_json())
+        variant_hash = record["variant"]["variant_hash"]
+        record["id"] = f"6He/0p-T1-n2/Erel/2026-08-18_15-02-11_{variant_hash}"
+        record["schema_version"] = 1
+        record["variant"].pop("cohort_hash", None)
+        upgraded, applied = apply_migrations(record)
+        assert applied == ["v1->v2"]
+        assert upgraded["schema_version"] == 2
+        parts = upgraded["id"].split("/")
+        assert len(parts) == 5
+        assert parts[4].startswith("final_")
+        assert parts[4].endswith(variant_hash)
+        assert upgraded["variant"]["cohort_hash"]
+        assert parts[3].endswith(upgraded["variant"]["cohort_hash"])
 
     def test_registered_migration_runs_on_read(self):
         from results_library import migrations
@@ -307,6 +323,8 @@ class TestCatalog:
         assert working["tags"] == "hOmega-scan"
         assert working["nucleus"] == "6He"
         assert working["state_slug"] == "0p-T1-n2"
+        assert len(str(working["id"]).split("/")) == 5
+        assert str(working["selection_stamp"]).startswith("final_")
         assert "(2)" in working["state_label"]  # n>1 is shown
         assert working["median"] == pytest.approx(2.639)
         assert "2.639" in working["value_label"]
@@ -491,7 +509,8 @@ class TestLatex:
         assert "\\toprule" not in tsv
 
         csv_text = csv_table(rows)
-        assert csv_text.splitlines()[0].startswith("State")
+        assert csv_text.splitlines()[0].startswith("Date")
+        assert "State" in csv_text.splitlines()[0]
         assert "Erel" in csv_text
         assert "Potential" in tex
         assert "$N_{\\max}$" in tex
@@ -542,6 +561,42 @@ class TestSite:
         assert "help-mark" in html
         assert "Nmax at which the extrapolated value is read off" in html
         assert "Daejeon16" in html
+
+    def test_date_column_sorts_newest_first(self, tmp_path):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        library = tmp_path / "dates"
+        library.mkdir()
+        older = _he6_record(
+            "2026-08-18_09-59-21_aaaaaaaa",
+            variant=Variant(
+                selection_set="final",
+                bounds={"Nmax": [2, 6], "hOmega": [13, 40]},
+                potential="Daejeon16",
+            ),
+        )
+        newer = _he6_record(
+            "2026-08-25_11-10-27_bbbbbbbb",
+            computed=_computed(median=3.0, N_models=8),
+            variant=Variant(
+                selection_set="final",
+                bounds={"Nmax": [2, 6], "hOmega": [13, 40]},
+                potential="Daejeon16",
+            ),
+        )
+        _place(library, older, files={})
+        _place(library, newer, files={})
+        frame, _ = build_catalog(library)
+        labels = list(frame["run_date_label"])
+        assert labels[0] == "25 Aug 2026"
+        assert labels[1] == "18 Aug 2026"
+        site = build_site(library, frame)
+        index = (site / "index.html").read_text(encoding="utf-8")
+        assert "25 Aug 2026" in index
+        assert index.index("25 Aug 2026") < index.index("18 Aug 2026")
+        assert "sorted-desc" in index
+        assert 'data-value="2026-08-25T11:10:27"' in index
 
     def test_math_is_typeset_from_stored_latex(self, library):
         pytest.importorskip("jinja2")
@@ -778,10 +833,11 @@ class TestExcel:
         he6 = workbook["6He"]
         # Header + the one curated row (the other 6He result is probing).
         assert he6.max_row == 2
-        assert he6.cell(row=2, column=3).value == "Daejeon16"
-        assert he6.cell(row=2, column=9).value == "[2, 6]"
-        assert he6.cell(row=2, column=11).value == "working"
-        assert he6.cell(row=2, column=12).value == "Own sample weights."
+        assert he6.cell(row=1, column=1).value == "Date"
+        assert he6.cell(row=2, column=4).value == "Daejeon16"
+        assert he6.cell(row=2, column=10).value == "[2, 6]"
+        assert he6.cell(row=2, column=12).value == "working"
+        assert he6.cell(row=2, column=13).value == "Own sample weights."
 
         # 16C transition is still probing, so it is not shown.
         assert "16C" not in workbook.sheetnames
@@ -799,8 +855,8 @@ class TestExcel:
         frame, _ = build_catalog(library)
         path = build_workbook(library, frame, include_probing=False)
         sheet = load_workbook(path)["6He"]
-        plot_cell = sheet.cell(row=2, column=17)  # Plot
-        details = sheet.cell(row=2, column=20)  # Details
+        plot_cell = sheet.cell(row=2, column=18)  # Plot
+        details = sheet.cell(row=2, column=21)  # Details
         assert plot_cell.hyperlink is not None
         assert "histogram.png" in str(plot_cell.hyperlink.target)
         assert details.hyperlink is not None
@@ -868,6 +924,36 @@ class TestCLI:
         assert cli_main(["build", "--library", str(library), "--no-excel"]) == 0
         assert (library / "annotations.toml").read_bytes() == original
 
+    def test_migrate_selection_folders_rewrites_v1_layout(self, tmp_path):
+        library = tmp_path / "legacy"
+        library.mkdir()
+        record = _he6_record("2026-08-18_15-02-11")
+        data = json.loads(record.to_json())
+        variant_hash = data["variant"]["variant_hash"]
+        old_id = f"6He/0p-T1-n2/Erel/2026-08-18_15-02-11_{variant_hash}"
+        data["id"] = old_id
+        data["schema_version"] = 1
+        data["variant"].pop("cohort_hash", None)
+        bundle = library / "bundles" / Path(*old_id.split("/"))
+        bundle.mkdir(parents=True)
+        (bundle / "result.json").write_text(json.dumps(data), encoding="utf-8")
+        (library / "annotations.toml").write_text(
+            f'["{old_id}"]\nnote = "keep"\n',
+            encoding="utf-8",
+        )
+
+        assert cli_main(["migrate-selection-folders", "--library", str(library)]) == 0
+        remaining = list((library / "bundles").rglob("result.json"))
+        assert len(remaining) == 1
+        moved = json.loads(remaining[0].read_text(encoding="utf-8"))
+        parts = moved["id"].split("/")
+        assert len(parts) == 5
+        assert parts[4].startswith("final_")
+        assert remaining[0].parent.name.startswith("final_")
+        assert remaining[0].parent.parent.name.endswith(moved["variant"]["cohort_hash"])
+        assert old_id not in (library / "annotations.toml").read_text(encoding="utf-8")
+        assert moved["id"] in (library / "annotations.toml").read_text(encoding="utf-8")
+
     def test_library_flag_works_before_or_after_subcommand(self, library):
         assert cli_main(["--library", str(library), "catalog"]) == 0
         assert cli_main(["catalog", "--library", str(library)]) == 0
@@ -884,7 +970,7 @@ class TestVendorSync:
             assert (vendor / name).exists(), name
         from results_schema.models import SCHEMA_VERSION
 
-        assert SCHEMA_VERSION == 1
+        assert SCHEMA_VERSION == 2
 
     def test_vendor_matches_pipeline_when_source_is_available(self):
         source = source_dir()

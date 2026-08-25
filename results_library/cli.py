@@ -7,6 +7,7 @@ Command line interface for the results library.
     python -m results_library.cli excel   --library ...
     python -m results_library.cli lint    --library ...
     python -m results_library.cli serve   --library ...
+    python -m results_library.cli migrate-selection-folders --library ...
 
 ``build`` is the everyday command: it rebuilds the catalog, the site, and the
 workbook from scratch. There is no incremental state, so nothing can end up
@@ -178,6 +179,32 @@ def command_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_migrate_selection_folders(args: argparse.Namespace) -> int:
+    from results_library.migrate_paths import migrate_selection_folders
+
+    library = resolve_library(args)
+    report = migrate_selection_folders(library, dry_run=args.dry_run)
+    verb = "Would move" if args.dry_run else "Moved"
+    print(f"{verb} {len(report.moved)} bundle(s) under {library / 'bundles'}")
+    for item in report.moved:
+        print(f"  {item.old_id}")
+        print(f"    -> {item.new_id}")
+    if report.rewritten_files:
+        action = "Would update" if args.dry_run else "Updated"
+        print(f"{action}: {', '.join(report.rewritten_files)}")
+    if report.skipped:
+        print(f"Skipped {len(report.skipped)}")
+        if getattr(args, "verbose", False):
+            for message in report.skipped:
+                print(f"  {message}")
+    if report.errors:
+        print(f"{len(report.errors)} error(s)")
+        for message in report.errors:
+            print(f"  {message}")
+        return 1
+    return 0
+
+
 def command_serve(args: argparse.Namespace) -> int:
     """Hand off to Datasette for a live, queryable view of the catalog."""
     from results_library.catalog import CATALOG_DB
@@ -292,6 +319,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     serve.add_argument("--port", type=int, default=8001)
     serve.set_defaults(func=command_serve)
+
+    migrate = subparsers.add_parser(
+        "migrate-selection-folders",
+        help="rewrite v1 four-segment bundles into v2 selection-set folders",
+        parents=[shared],
+    )
+    migrate.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the planned moves without touching the library",
+    )
+    migrate.set_defaults(func=command_migrate_selection_folders)
 
     return parser
 

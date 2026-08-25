@@ -18,6 +18,7 @@ from typing import Any, Iterable, Mapping, Optional, Sequence
 
 #: Column key -> (LaTeX header, plain header)
 COLUMN_HEADERS: dict[str, tuple[str, str]] = {
+    "date": ("Date", "Date"),
     "nucleus": ("Nucleus", "Nucleus"),
     "state": ("State", "State"),
     "observable": ("Observable", "Observable"),
@@ -35,6 +36,7 @@ COLUMN_HEADERS: dict[str, tuple[str, str]] = {
 }
 
 DEFAULT_COLUMNS: tuple[str, ...] = (
+    "date",
     "state",
     "observable",
     "potential",
@@ -77,6 +79,9 @@ def _latex_escape(text: str) -> str:
 
 def cell_value(row: Mapping[str, Any], column: str, for_latex: bool) -> str:
     """One cell, formatted for either LaTeX or plain text."""
+    if column == "date":
+        return _text(row.get("run_date_label") or row.get("date"))
+
     if column == "state":
         if for_latex:
             return _text(row.get("state_latex") or row.get("state_label"))
@@ -106,8 +111,10 @@ def _prepare_cell(row: Mapping[str, Any], column: str, for_latex: bool) -> str:
 
 
 def _alignment(columns: Sequence[str]) -> str:
-    return "".join("l" if column in ("state", "observable", "potential", "id") else "c"
-                   for column in columns)
+    return "".join(
+        "l" if column in ("date", "state", "observable", "potential", "id") else "c"
+        for column in columns
+    )
 
 
 def latex_table(

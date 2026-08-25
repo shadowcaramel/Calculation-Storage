@@ -31,13 +31,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from results_schema.identity import validate_state_declaration
 from results_schema.slugs import (
     build_result_id,
+    build_selection_stamp,
     family_of,
     parity_sign,
     state_slug,
     transition_slug,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 #: Curation states. ``probing`` is the default for every auto-captured run;
 #: promotion to ``working`` or ``published`` is always manual.
@@ -282,15 +283,38 @@ class Variant(_Base):
     config_name: Optional[str] = None
     potential: Optional[str] = None
     variant_hash: Optional[str] = None
+    cohort_hash: Optional[str] = None
 
-    def compute_hash(self) -> str:
-        """Short digest of the setup, so repeated identical setups are visible."""
-        payload = self.model_dump(exclude={"variant_hash"}, exclude_none=True)
+    def _digest(self, exclude: set[str]) -> str:
+        payload = self.model_dump(exclude=exclude, exclude_none=True)
         canonical = json.dumps(payload, sort_keys=True, default=str)
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:8]
 
+    def compute_hash(self) -> str:
+        """Short digest of the full setup, including the selection set."""
+        return self._digest({"variant_hash", "cohort_hash"})
+
+    def compute_cohort_hash(self) -> str:
+        """Digest of the trained ensemble, shared by every selection set.
+
+        Excludes ``selection_set`` and ``filter_criteria`` so ``final`` and
+        ``all_models`` land under the same parent folder.
+        """
+        return self._digest(
+            {"variant_hash", "cohort_hash", "selection_set", "filter_criteria"}
+        )
+
+    def with_hashes(self) -> "Variant":
+        return self.model_copy(
+            update={
+                "cohort_hash": self.compute_cohort_hash(),
+                "variant_hash": self.compute_hash(),
+            }
+        )
+
     def with_hash(self) -> "Variant":
-        return self.model_copy(update={"variant_hash": self.compute_hash()})
+        """Backward-compatible alias for :meth:`with_hashes`."""
+        return self.with_hashes()
 
 
 class StoredFile(_Base):
@@ -371,13 +395,22 @@ class ResultRecord(_Base):
         artifacts: Optional[Mapping[str, str]] = None,
         column_labels: Optional[Mapping[str, Mapping[str, Any]]] = None,
         status: Status = "probing",
+        selection_stamp: Optional[str] = None,
     ) -> "ResultRecord":
         """Assemble a record, deriving ``id`` and ``family`` from the identity."""
         path_slug = observable_path_slug or observable.slug
+        variant = (variant or Variant()).with_hashes()
+        if selection_stamp is None:
+            selection_stamp = build_selection_stamp(
+                variant.selection_set, variant.variant_hash
+            )
         result_id = build_result_id(
-            subject.nucleus_name, subject.slug, path_slug, run_stamp
+            subject.nucleus_name,
+            subject.slug,
+            path_slug,
+            run_stamp,
+            selection_stamp,
         )
-        variant = (variant or Variant()).with_hash()
         return cls(
             id=result_id,
             family=family_of(result_id),

@@ -190,6 +190,7 @@ def flatten_record(
 ) -> Dict[str, Any]:
     """Turn one record into a single flat catalog row."""
     from results_schema.labels import mathtext_to_unicode, observable_unicode, setup_label
+    from results_schema.slugs import format_run_date_label, run_datetime_sort_key
 
     record = scanned.data
     subject = record.get("subject") or {}
@@ -211,6 +212,7 @@ def flatten_record(
         "state_slug": segments[1] if len(segments) > 1 else None,
         "observable_slug": segments[2] if len(segments) > 2 else None,
         "run_stamp": segments[3] if len(segments) > 3 else None,
+        "selection_stamp": segments[4] if len(segments) > 4 else None,
         "subject_kind": subject.get("kind"),
         "observable": observable.get("name") or observable.get("slug"),
         "observable_latex": observable.get("latex"),
@@ -243,6 +245,9 @@ def flatten_record(
     # Variant / setup
     row["selection_set"] = variant.get("selection_set")
     row["variant_hash"] = variant.get("variant_hash")
+    row["cohort_hash"] = variant.get("cohort_hash")
+    row["run_datetime"] = run_datetime_sort_key(row.get("run_stamp"))
+    row["run_date_label"] = format_run_date_label(row.get("run_stamp"))
     row["config_name"] = variant.get("config_name")
     row["filter_criteria"] = LIST_SEPARATOR.join(variant.get("filter_criteria") or [])
     for column, limits in (variant.get("bounds") or {}).items():
@@ -324,11 +329,16 @@ def build_catalog(library_root: Path) -> tuple[pd.DataFrame, ScanResult]:
     frame = pd.DataFrame(rows)
 
     if not frame.empty:
-        # Newest first, which is what you want when opening the catalog to see
-        # what just finished.
-        sort_columns = [c for c in ("nucleus", "family", "run_stamp") if c in frame]
+        # Newest calculation first (time included in run_datetime, hidden in the
+        # displayed date label), then nucleus/family for a stable order.
+        sort_columns = [
+            c for c in ("run_datetime", "nucleus", "family", "id") if c in frame
+        ]
         if sort_columns:
-            frame = frame.sort_values(sort_columns, ascending=[True, True, False])
+            ascending = [column != "run_datetime" for column in sort_columns]
+            frame = frame.sort_values(
+                sort_columns, ascending=ascending, na_position="last"
+            )
         frame = frame.reset_index(drop=True)
 
     return frame, scan

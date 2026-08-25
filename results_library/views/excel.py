@@ -29,6 +29,7 @@ _MAX_SHEET_NAME = 31
 
 #: (column header, catalog key)
 _COLUMNS: tuple[tuple[str, str], ...] = (
+    ("Date", "run_date_label"),
     ("State", "state_label"),
     ("Observable", "observable_label"),
     ("Potential", "potential"),
@@ -131,9 +132,20 @@ def build_workbook(
             sheet.append(headers)
             _style_header(sheet, Font, Alignment)
 
-            for _, record in rows.sort_values(
-                [c for c in ("state_slug", "observable", "run_stamp") if c in rows]
-            ).iterrows():
+            sort_cols = [
+                c
+                for c in ("run_datetime", "state_slug", "observable", "id")
+                if c in rows.columns
+            ]
+            ascending = [c != "run_datetime" for c in sort_cols]
+            ordered = (
+                rows.sort_values(
+                    sort_cols, ascending=ascending, na_position="last"
+                )
+                if sort_cols
+                else rows
+            )
+            for _, record in ordered.iterrows():
                 _append_row(sheet, record, library_root, get_column_letter)
 
             _autosize(sheet, get_column_letter)
