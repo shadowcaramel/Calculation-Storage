@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import selection_tab_bar, table_block %}
+{% from "macros.html" import table_block %}
 {% block title %}Calculation results{% endblock %}
 
 {% block content %}
@@ -33,6 +33,5 @@
 </section>
 {% endif %}
 
-{{ selection_tab_bar(selection_tabs, default_selection) }}
 {{ table_block(rows, "All results", "all", root, exports) }}
 {% endblock %}

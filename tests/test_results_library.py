@@ -734,11 +734,18 @@ class TestSite:
         frame, _ = build_catalog(library)
         site = build_site(library, frame)
         index = (site / "index.html").read_text(encoding="utf-8")
-        assert "data-selection-tabs" in index
-        assert 'data-selection-tab="final"' in index
-        assert 'data-selection-tab="all_models"' in index
+        assert "data-selection-tabs" not in index
+        assert 'data-selection="all_models"' not in index
         assert 'data-selection="final"' in index
-        assert 'class="tab is-active"' in index
+        assert 'data-selection-tab="all_models"' not in index
+        all_csv = (site / "exports" / "all.csv").read_text(encoding="utf-8")
+        nucleus_csv = (site / "exports" / "nucleus-6He.csv").read_text(encoding="utf-8")
+        assert all_csv.count("\n") == 2  # header + final row
+        assert nucleus_csv.count("\n") == 3  # header + both selection sets
+
+        nucleus = (site / "nucleus" / "6He.html").read_text(encoding="utf-8")
+        assert "data-selection-tabs" in nucleus
+        assert 'data-selection-tab="all_models"' in nucleus
 
         final_row = frame[frame["selection_set"] == "final"].iloc[0]
         page = (

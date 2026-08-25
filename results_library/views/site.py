@@ -285,6 +285,23 @@ def _nmax_scan_key(row: Mapping[str, Any]) -> str:
     ))
 
 
+def _is_main_table_row(row: Mapping[str, Any]) -> bool:
+    """Whether a result belongs on the index table.
+
+    Diagnostic selection sets (``all_models``, ``conv_Eexc``, …) stay on
+    nucleus and detail pages. The main list is the ``final`` subset, plus
+    older records that never declared a selection set.
+    """
+    name = row.get("selection_set")
+    if name is None or str(name).strip() == "":
+        return True
+    return str(name) == "final"
+
+
+def _main_table_rows(rows: Iterable[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    return [row for row in rows if _is_main_table_row(row)]
+
+
 def _selection_tabs(rows: Iterable[Mapping[str, Any]]) -> List[str]:
     """Selection-set names present in ``rows``, or empty when there is only one."""
     names: List[str] = []
@@ -571,7 +588,7 @@ class SiteBuilder:
         exports_dir = self.site_root / "exports"
         exports_dir.mkdir(parents=True, exist_ok=True)
 
-        groups: Dict[str, List[Dict[str, Any]]] = {"all": rows}
+        groups: Dict[str, List[Dict[str, Any]]] = {"all": _main_table_rows(rows)}
         for row in rows:
             groups.setdefault(f"nucleus-{_nucleus_slug(row.get('nucleus'))}", []).append(row)
 
@@ -594,9 +611,10 @@ class SiteBuilder:
         figures: List[ComparisonFigure],
         rows_by_id: Mapping[str, Mapping[str, Any]],
     ) -> None:
+        table_rows = _main_table_rows(rows)
         counts: Dict[str, int] = {}
         labels: Dict[str, str] = {}
-        for row in rows:
+        for row in table_rows:
             nucleus = str(row.get("nucleus") or "")
             counts[nucleus] = counts.get(nucleus, 0) + 1
             labels.setdefault(nucleus, str(row.get("nucleus_label") or nucleus))
@@ -605,21 +623,18 @@ class SiteBuilder:
             {"slug": _nucleus_slug(n), "label": labels[n], "count": counts[n]}
             for n in sorted(counts)
         ]
-        tabs = _selection_tabs(rows)
 
         self._render(
             self.site_root / "index.html",
             environment.get_template("index.html"),
             root="",
-            rows=rows,
+            rows=table_rows,
             nuclei=nuclei,
             statuses=STATUSES,
-            hide_probing=_hide_probing_default(rows),
-            exports=_exports(rows),
+            hide_probing=_hide_probing_default(table_rows),
+            exports=_exports(table_rows),
             generated_at=self.generated_at,
             record_count=len(rows),
-            selection_tabs=tabs,
-            default_selection=tabs[0] if tabs else None,
             comparison_figures=_figure_views(figures, f"{SITE_DIRNAME}/index.html", rows_by_id),
         )
 

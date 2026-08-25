@@ -117,11 +117,12 @@ The site hides `probing` results by default, and the workbook omits them unless
 you pass `--include-probing`.
 
 When more than one selection set was captured for the same trained ensemble
-(same run, family, potential, and training bounds), the index and nucleus pages
-show a tab bar. The default tab is `final`. Comparing filters means capturing
-them on purpose, for example `selection_sets = ["all_models", "final", "conv_Ethr"]`
-in `[results_library]` / `[postprocessing.summary]`; extra sets are not captured
-automatically.
+(same run, family, potential, and training bounds), the **detail** and nucleus
+pages show a tab bar. The default tab is `final`. The index table lists only
+`final` (diagnostic sets such as `all_models` are omitted there). Comparing
+filters means capturing them on purpose, for example
+`selection_sets = ["all_models", "final", "conv_Ethr"]` in `[results_library]` /
+`[postprocessing.summary]`; extra sets are not captured automatically.
 
 The main table's Date column is the calculation day (`25 Aug 2026`), taken from
 the run stamp. Rows sort newest-first, using the hidden time of day as a
@@ -134,9 +135,8 @@ Selection sets of one trained ensemble share a parent folder:
 bundles/{nucleus}/{state}/{observable}/{YYYY-MM-DD_HH-MM-SS}_{cohort_hash}/{selection_set}_{variant_hash}/
 ```
 
-The site still shows a tab bar when more than one set was captured. Older
-four-segment bundles (`.../{stamp}_{variant_hash}/` with no selection subfolder)
-need a one-shot rewrite:
+Older four-segment bundles (`.../{stamp}_{variant_hash}/` with no selection
+subfolder) need a one-shot rewrite:
 
 ```bash
 python -m results_library.cli migrate-selection-folders --library "G:/Shared drives/Calculation results/Calculation storage"
