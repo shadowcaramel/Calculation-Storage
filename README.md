@@ -23,6 +23,7 @@ SHARED LIBRARY (light, synced, not git)
   comparisons/                figure files named by comparisons.toml
   catalog.parquet             GENERATED
   catalog.db                  GENERATED
+  index.html                  GENERATED (open this; assets stay under site/)
   site/index.html             GENERATED
   calculation_results.xlsx    GENERATED
 ```
@@ -66,7 +67,7 @@ python -m results_library.cli build --library "G:/Shared drives/Calculation resu
 
 That rebuilds the catalog, the site, and the workbook **from scratch**. There is
 no incremental state, so a rebuild is always safe and takes seconds for a few
-thousand results. Open `site/index.html` afterwards.
+thousand results. Open `index.html` in the library folder afterwards.
 
 To avoid retyping the path, set it once:
 
@@ -181,8 +182,8 @@ file.
 States, observables, values, and the axis names are typeset in the browser by
 KaTeX, which is shipped inside the site under `assets/katex/`. Formulas use the
 same Inter face as the surrounding page (Computer Modern is not loaded for
-letters and digits). A collaborator opens `site/index.html` from the synced
-folder and gets real math: nothing to install, no network. Where the script
+letters and digits). A collaborator opens `index.html` from the synced
+library folder and gets real math: nothing to install, no network. Where the script
 does not run, each formula falls back to its Unicode form (`Eᵣₑₗ`, `ħΩ`,
 `Nₘₐₓ`), which is also what Excel, CSV, and TSV show.
 

@@ -101,8 +101,8 @@ def command_site(args: argparse.Namespace) -> int:
 
     library = resolve_library(args)
     frame, _ = build_catalog(library)
-    site_root = build_site(library, frame)
-    print(f"Site: {site_root / 'index.html'}")
+    build_site(library, frame)
+    print(f"Site: {library / 'index.html'}")
     return 0
 
 
@@ -156,8 +156,8 @@ def command_build(args: argparse.Namespace) -> int:
     paths = write_catalog(frame, library)
     print(f"Catalog: {len(frame)} result(s) -> {paths['parquet'].name}, {paths['sqlite'].name}")
 
-    site_root = build_site(library, frame)
-    print(f"Site:    {site_root / 'index.html'}")
+    build_site(library, frame)
+    print(f"Site:    {library / 'index.html'}")
 
     if not args.no_excel:
         try:

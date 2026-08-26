@@ -544,6 +544,15 @@ class TestSite:
         assert (site / "exports" / "all.tex").exists()
         assert (site / "exports" / "all.csv").exists()
 
+        root_index = (library / "index.html").read_text(encoding="utf-8")
+        assert 'href="site/assets/style.css"' in root_index
+        assert 'src="site/assets/app.js"' in root_index
+        assert 'href="site/nucleus/6He.html"' in root_index
+        assert 'href="site/exports/all.csv"' in root_index
+        assert 'href="site/results/' in root_index
+        assert 'href="assets/style.css"' in index
+        assert 'href="site/assets/style.css"' not in index
+
         assert (site / "nucleus" / "6He.html").exists()
         assert (site / "nucleus" / "16C.html").exists()
         assert index.find("nucleus/6He.html") < index.find("nucleus/16C.html")
@@ -898,6 +907,7 @@ class TestCLI:
         assert (library / "catalog.parquet").exists()
         assert (library / "catalog.db").exists()
         assert (library / "site" / "index.html").exists()
+        assert (library / "index.html").exists()
         assert (library / "calculation_results.xlsx").exists()
         # The human layer is never overwritten.
         text = (library / "annotations.toml").read_text(encoding="utf-8")

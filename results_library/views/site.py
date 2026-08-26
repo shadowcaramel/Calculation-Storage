@@ -605,13 +605,15 @@ class SiteBuilder:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(template.render(**context), encoding="utf-8")
 
-    def _render_index(
+    def _index_context(
         self,
-        environment,
         rows: List[Dict[str, Any]],
         figures: List[ComparisonFigure],
         rows_by_id: Mapping[str, Mapping[str, Any]],
-    ) -> None:
+        *,
+        root: str,
+        page_path: str,
+    ) -> Dict[str, Any]:
         table_rows = _main_table_rows(rows)
         counts: Dict[str, int] = {}
         labels: Dict[str, str] = {}
@@ -624,19 +626,51 @@ class SiteBuilder:
             {"slug": _nucleus_slug(n), "label": labels[n], "count": counts[n]}
             for n in sorted(counts, key=nucleus_sort_key)
         ]
+        return {
+            "root": root,
+            "rows": table_rows,
+            "nuclei": nuclei,
+            "statuses": STATUSES,
+            "hide_probing": _hide_probing_default(table_rows),
+            "exports": _exports(table_rows),
+            "generated_at": self.generated_at,
+            "record_count": len(rows),
+            "comparison_figures": _figure_views(figures, page_path, rows_by_id),
+        }
 
+    def _render_index(
+        self,
+        environment,
+        rows: List[Dict[str, Any]],
+        figures: List[ComparisonFigure],
+        rows_by_id: Mapping[str, Mapping[str, Any]],
+    ) -> None:
+        template = environment.get_template("index.html")
+        # Nested copy: asset and page links are same-folder (`assets/…`).
         self._render(
             self.site_root / "index.html",
-            environment.get_template("index.html"),
-            root="",
-            rows=table_rows,
-            nuclei=nuclei,
-            statuses=STATUSES,
-            hide_probing=_hide_probing_default(table_rows),
-            exports=_exports(table_rows),
-            generated_at=self.generated_at,
-            record_count=len(rows),
-            comparison_figures=_figure_views(figures, f"{SITE_DIRNAME}/index.html", rows_by_id),
+            template,
+            **self._index_context(
+                rows,
+                figures,
+                rows_by_id,
+                root="",
+                page_path=f"{SITE_DIRNAME}/index.html",
+            ),
+        )
+        # Library-root copy: a real HTML file, not a shortcut, so the browser
+        # still finds CSS/JS/KaTeX under site/. Drive and Windows shortcuts
+        # resolve relative URLs against the shortcut's folder and come up empty.
+        self._render(
+            self.library_root / "index.html",
+            template,
+            **self._index_context(
+                rows,
+                figures,
+                rows_by_id,
+                root=f"{SITE_DIRNAME}/",
+                page_path="index.html",
+            ),
         )
 
     def _render_nucleus_pages(
