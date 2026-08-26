@@ -35,6 +35,7 @@ from results_library.views.latex import (
     latex_table,
     tsv_table,
 )
+from results_schema.nuclides import nucleus_sort_key
 
 logger = logging.getLogger(__name__)
 
@@ -621,7 +622,7 @@ class SiteBuilder:
 
         nuclei = [
             {"slug": _nucleus_slug(n), "label": labels[n], "count": counts[n]}
-            for n in sorted(counts)
+            for n in sorted(counts, key=nucleus_sort_key)
         ]
 
         self._render(

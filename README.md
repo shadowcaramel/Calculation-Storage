@@ -126,8 +126,10 @@ filters means capturing them on purpose, for example
 
 The main table's Date column is the calculation day (`25 Aug 2026`), taken from
 the run stamp. Rows sort newest-first, using the hidden time of day as a
-tie-breaker. Nmax is the **training window** `[min, max]`. `Nmax_final` (the
-readout) stays on the detail page.
+tie-breaker. Nucleus chips follow the periodic table: proton number, then mass
+number (`⁶He` before `¹⁷C`). A name with no mass number sorts before that
+element's isotopes. Nmax is the **training window** `[min, max]`. `Nmax_final`
+(the readout) stays on the detail page.
 
 Selection sets of one trained ensemble share a parent folder:
 

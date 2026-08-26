@@ -35,6 +35,7 @@ Z_BY_SYMBOL: dict[str, int] = {sym: z for z, sym in enumerate(_SYMBOLS, start=1)
 _Z_BY_SYMBOL_CI: dict[str, int] = {sym.lower(): z for sym, z in Z_BY_SYMBOL.items()}
 
 _NUCLIDE_RE = re.compile(r"^\s*(\d+)\s*([A-Za-z]{1,2})\s*$")
+_SYMBOL_ONLY_RE = re.compile(r"^\s*([A-Za-z]{1,2})\s*$")
 
 # Unicode superscript digits for display labels.
 _SUPERSCRIPTS = str.maketrans("0123456789", "\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079")
@@ -113,3 +114,25 @@ def parse_nuclide(text: str) -> Nuclide:
 
     # Normalise capitalisation from the lookup table.
     return Nuclide(A=a, element=_SYMBOLS[z - 1], Z=z)
+
+
+def nucleus_sort_key(text: str) -> tuple[int, int, int, str]:
+    """Periodic-table order: proton number Z, then mass number A.
+
+    A bare element symbol (``He``) sorts before isotopes of that element
+    (``4He``, ``6He``). Names that cannot be parsed sort last, alphabetically.
+    """
+    raw = str(text or "").strip()
+    try:
+        nuclide = parse_nuclide(raw)
+        return (0, nuclide.Z, nuclide.A, nuclide.canonical)
+    except ValueError:
+        pass
+
+    match = _SYMBOL_ONLY_RE.match(raw)
+    if match:
+        z = _Z_BY_SYMBOL_CI.get(match.group(1).lower())
+        if z is not None:
+            return (0, z, 0, _SYMBOLS[z - 1])
+
+    return (1, 10**9, 10**9, raw)

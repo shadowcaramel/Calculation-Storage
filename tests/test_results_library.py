@@ -546,6 +546,7 @@ class TestSite:
 
         assert (site / "nucleus" / "6He.html").exists()
         assert (site / "nucleus" / "16C.html").exists()
+        assert index.find("nucleus/6He.html") < index.find("nucleus/16C.html")
 
         working = frame[frame["status"] == "working"].iloc[0]
         page = site / "results" / (working["id"].replace("/", "__") + ".html")
@@ -853,6 +854,8 @@ class TestExcel:
         shown = load_workbook(full)
         assert "16C" in shown.sheetnames
         assert shown["6He"].max_row == 3
+        # Periodic-table order: He (Z=2) before C (Z=6). "about" is first.
+        assert shown.sheetnames.index("6He") < shown.sheetnames.index("16C")
 
     def test_hyperlinks_point_at_plot_and_detail_page(self, library):
         pytest.importorskip("openpyxl")

@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from results_schema.labels import axis_unicode
+from results_schema.nuclides import nucleus_sort_key
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,12 @@ def build_workbook(
         )
         sheet.cell(row=2, column=1, value=note)
     else:
-        for nucleus, rows in frame.groupby("nucleus", sort=True):
+        ordered_nuclei = sorted(
+            (str(n) for n in frame["nucleus"].dropna().unique()),
+            key=nucleus_sort_key,
+        )
+        for nucleus in ordered_nuclei:
+            rows = frame.loc[frame["nucleus"] == nucleus]
             sheet = workbook.create_sheet(_safe_sheet_name(str(nucleus), used_names))
             sheet.append(headers)
             _style_header(sheet, Font, Alignment)

@@ -35,7 +35,7 @@ from results_schema.labels import (
     subject_latex,
     subject_unicode,
 )
-from results_schema.nuclides import Nuclide, parse_nuclide
+from results_schema.nuclides import Nuclide, nucleus_sort_key, parse_nuclide
 from results_schema.slugs import (
     TRANSITION_SEP,
     build_result_id,
@@ -82,6 +82,7 @@ __all__ = [
     "mathtext_to_unicode",
     "nuclide_latex",
     "nuclide_unicode",
+    "nucleus_sort_key",
     "observable_unicode",
     "observable_slug",
     "parity_sign",
