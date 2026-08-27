@@ -26,11 +26,14 @@ SHARED LIBRARY (light, synced, not git)
   index.html                  GENERATED (open this; assets stay under site/)
   site/index.html             GENERATED
   calculation_results.xlsx    GENERATED
+  README.txt                  COPIED from git on each site build
 ```
 
 Bundles, `sources/`, `annotations.toml`, `comparisons.toml`, and the comparison
-files are inputs. Everything else is regenerated from them, so the generated
-files can be deleted at any time without losing anything.
+files are inputs. `README.txt` is copied from this repository
+(`results_library/views/library_readme.txt`) so Drive users get a one-page
+note without cloning git. Everything else is regenerated from the inputs, so
+the generated files can be deleted at any time without losing anything.
 
 `annotations.toml` is **never written** by any tool here. `comparisons.toml` is
 the same: the pipeline never overwrites it. That is what makes the machine
@@ -57,7 +60,34 @@ pip install -e ".[serve,dev]"
 ```
 
 Set the shared folder to mirrored / available-offline rather than streaming: the
-catalog build reads thousands of small JSON files.
+catalog build reads thousands of small JSON files. Collaborators who only
+browse the catalog need the same setting; see below.
+
+## Opening the site from Drive
+
+Open `index.html` in the **library** folder (next to `bundles/` and `site/`),
+from Finder or File Explorer, not from drive.google.com.
+The website preview does not load CSS or follow bundle links. Do not open
+`results_library/views/templates/index.html` in this git repository; that is a
+template.
+
+The library folder must be a real local copy, not a cloud placeholder.
+
+**Windows and macOS.** In Drive for desktop prefer **Mirror files** over Stream
+files. Right-click the library folder → **Available offline** / **Download
+now**, and wait until cloud icons become checkmarks. Enable **Shared drives**
+for the account in Drive preferences (easy to leave off on macOS).
+
+**macOS and Chrome.** Chrome often opens the HTML but blocks sibling files on
+the Drive File Provider volume (`~/Library/CloudStorage/…`): unstyled page,
+Access denied on bundle links. Safari usually works with no extra settings.
+For Chrome: System Settings → Privacy & Security → **Files and Folders** →
+allow Google Chrome. If that is not enough: **Full Disk Access** → add Google
+Chrome, quit Chrome fully (Cmd-Q), reopen, then File → Open File… and choose
+`index.html`.
+
+A one-page `README.txt` with the same instructions is copied into the library
+folder on each site build.
 
 ## Everyday use
 

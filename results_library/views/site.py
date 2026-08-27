@@ -40,6 +40,7 @@ from results_schema.nuclides import nucleus_sort_key
 logger = logging.getLogger(__name__)
 
 SITE_DIRNAME = "site"
+LIBRARY_README_NAME = "README.txt"
 _IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 
 def _stat_fields() -> tuple[tuple[str, str, Optional[str], Optional[str]], ...]:
@@ -534,6 +535,7 @@ class SiteBuilder:
         self.site_root.mkdir(parents=True, exist_ok=True)
 
         self._copy_assets()
+        self._copy_library_readme()
 
         figures = load_comparisons(self.library_root)
         environment.globals["has_comparisons"] = bool(figures)
@@ -583,6 +585,16 @@ class SiteBuilder:
                 last_error = exc
                 time.sleep(0.4 * (attempt + 1))
         raise RuntimeError(f"Could not copy site assets to {target}") from last_error
+
+    def _copy_library_readme(self) -> None:
+        """Copy the short collaborator note to the library root.
+
+        Drive users never clone the git repository, so the site build puts
+        ``README.txt`` next to ``index.html``. The git file is the source.
+        """
+        source = Path(__file__).parent / "library_readme.txt"
+        dest = self.library_root / LIBRARY_README_NAME
+        dest.write_bytes(source.read_bytes())
 
     def _write_exports(self, rows: List[Dict[str, Any]]) -> None:
         """Downloadable table exports, generated from catalog values."""

@@ -544,6 +544,11 @@ class TestSite:
         assert (site / "exports" / "all.tex").exists()
         assert (site / "exports" / "all.csv").exists()
 
+        readme = (library / "README.txt").read_bytes()
+        assert readme == (Path(__file__).parent.parent / "results_library" / "views" / "library_readme.txt").read_bytes()
+        assert b"Full Disk Access" in readme
+        assert b"index.html" in readme
+
         root_index = (library / "index.html").read_text(encoding="utf-8")
         assert 'href="site/assets/style.css"' in root_index
         assert 'src="site/assets/app.js"' in root_index
@@ -908,6 +913,7 @@ class TestCLI:
         assert (library / "catalog.db").exists()
         assert (library / "site" / "index.html").exists()
         assert (library / "index.html").exists()
+        assert (library / "README.txt").exists()
         assert (library / "calculation_results.xlsx").exists()
         # The human layer is never overwritten.
         text = (library / "annotations.toml").read_text(encoding="utf-8")
