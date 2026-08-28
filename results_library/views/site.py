@@ -858,15 +858,19 @@ class SiteBuilder:
             )
 
         plots: List[Dict[str, Any]] = []
-        for artifact_key, target in sorted(by_key.items()):
-            if not artifact_key.endswith("_plot"):
-                continue
-            stem = artifact_key[: -len("_plot")]
+        plot_stems = [
+            key[: -len("_plot")]
+            for key in by_key
+            if key.endswith("_plot")
+        ]
+        for stem in _ordered_plot_stems(row, plot_stems):
+            target = by_key[f"{stem}_plot"]
             data = by_key.get(f"{stem}_data")
             csv_path = by_key.get(f"{stem}_data_csv")
             plots.append(
                 {
                     "name": Path(target).name,
+                    "caption": _plot_caption(stem),
                     "href": _href(page_path, target),
                     "is_image": Path(target).suffix.lower() in _IMAGE_SUFFIXES,
                     "data_href": _href(page_path, data) if data else None,
@@ -876,6 +880,49 @@ class SiteBuilder:
             )
 
         return plots, sorted(artifacts, key=lambda a: a["key"])
+
+
+_PLOT_CAPTIONS = {
+    "selected_data": "Selected data",
+    "legacy_histogram": "Legacy histogram",
+    "energy_minima_vs_nmax": "Energy minima vs Nmax",
+    "predictions_at_nmax300": "Predictions at Nmax = 300",
+}
+
+
+def _plot_caption(stem: str) -> str:
+    """Human label for a captured plot stem, e.g. ``selected_data`` → Selected data."""
+    key = str(stem or "")
+    if key in _PLOT_CAPTIONS:
+        return _PLOT_CAPTIONS[key]
+    words = key.replace("_", " ").split()
+    if not words:
+        return key
+    return " ".join([words[0].capitalize(), *words[1:]])
+
+
+def _available_plot_stems(row: Mapping[str, Any]) -> List[str]:
+    raw = row.get("available")
+    if isinstance(raw, str):
+        return [part for part in raw.split(LIST_SEPARATOR) if part]
+    if isinstance(raw, (list, tuple)):
+        return [str(part) for part in raw if part]
+    return []
+
+
+def _ordered_plot_stems(row: Mapping[str, Any], stems: Iterable[str]) -> List[str]:
+    """``selected_data`` first (quick look), then ``available`` order, then leftovers."""
+    present = list(dict.fromkeys(stems))
+    ordered: List[str] = []
+    if "selected_data" in present:
+        ordered.append("selected_data")
+    for stem in _available_plot_stems(row):
+        if stem in present and stem not in ordered:
+            ordered.append(stem)
+    for stem in present:
+        if stem not in ordered:
+            ordered.append(stem)
+    return ordered
 
 
 def build_site(library_root: Path, catalog: Optional[pd.DataFrame] = None) -> Path:

@@ -577,6 +577,44 @@ class TestSite:
         assert "Nmax at which the extrapolated value is read off" in html
         assert "Daejeon16" in html
 
+    def test_detail_page_shows_selected_data_plot_first(self, tmp_path):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        library = tmp_path / "plots-order"
+        library.mkdir()
+        record = _he6_record(
+            "2026-08-18_plots",
+            artifacts={
+                "histogram_plot": "histogram.png",
+                "ensemble_curves_plot": "ensemble_curves.png",
+                "selected_data_plot": "selected_data_Erel.jpg",
+            },
+            available=["histogram", "ensemble_curves", "selected_data"],
+        )
+        _place(
+            library,
+            record,
+            files={
+                "histogram.png": _PLOT,
+                "ensemble_curves.png": _PLOT,
+                "selected_data_Erel.jpg": _PLOT,
+            },
+        )
+        frame, _ = build_catalog(library)
+        site = build_site(library, frame)
+        page = (
+            site / "results" / (record.id.replace("/", "__") + ".html")
+        ).read_text(encoding="utf-8")
+        selected = page.find("Selected data")
+        histogram = page.find("Histogram")
+        ensemble = page.find("Ensemble curves")
+        assert selected != -1
+        assert histogram != -1
+        assert ensemble != -1
+        assert selected < histogram < ensemble
+        assert "selected_data_Erel.jpg" in page
+
     def test_date_column_sorts_newest_first(self, tmp_path):
         pytest.importorskip("jinja2")
         from results_library.views.site import build_site

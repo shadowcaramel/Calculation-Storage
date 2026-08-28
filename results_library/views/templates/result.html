@@ -55,7 +55,7 @@
       {% else %}<span class="no-preview">{{ plot.name }}</span>{% endif %}
     </a>
     <figcaption>
-      {{ plot.name }}
+      {{ plot.caption or plot.name }}
       {% if plot.data_href %}
       &mdash; data:
       <a href="{{ plot.data_href }}" download>{{ plot.data_name }}</a>
