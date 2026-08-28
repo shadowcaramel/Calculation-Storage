@@ -3,7 +3,7 @@
 {% block title %}{{ row.title or row.id }}{% endblock %}
 
 {% block crumbs %}
-  <span class="sep">/</span><a href="{{ root }}nucleus/{{ nucleus_slug }}.html">{{ row.nucleus_label or row.nucleus }}</a>
+  <span class="sep">/</span><a href="{{ nucleus_href | default(root + 'nucleus/' + nucleus_slug + '.html') }}">{{ row.nucleus_label or row.nucleus }}</a>
   <span class="sep">/</span><span>{{ tex(row.observable_latex, row.observable_label or row.observable) }}</span>
 {% endblock %}
 
@@ -35,6 +35,19 @@
     {% endif %}
   {% endfor %}
 </nav>
+{% endif %}
+
+{% if data_selection %}
+<section class="table-block">
+  <h2>Data selection</h2>
+  <table class="detail">
+    <tbody>
+      {% for label, label_latex, value, hint in data_selection %}
+      <tr><th>{{ tex(label_latex, label) }}{{ help_tip(hint) }}</th><td>{{ value }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
 {% endif %}
 
 {% if row.note or row.outcome or row.tags %}

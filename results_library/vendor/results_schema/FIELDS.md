@@ -37,6 +37,7 @@ Current version: **2**
 | `variant` | 1 | | table | The setup that produced the number. |
 | `provenance` | 1 | | table | Where the number came from. |
 | `status` | 1 | | str | `probing` \| `working` \| `published` \| `superseded`. Written as `probing`; promotion happens in `annotations.toml`, which wins on conflict. |
+| `lineage` | 2 | | str | `modern` \| `legacy`. Training-code path, not date and not the physics method. `modern` is the current pipeline; `legacy` is the old TensorFlow cluster scripts (including new runs of that code). Default `modern`. Not on `variant`, so it does not change hashes. Bundle path is `bundles/{lineage}/{id}`. Older records omit the field; readers infer it from the path prefix or default to `modern`. |
 | `available` | 1 | | list[str] | Which artifact kinds actually exist, so views only offer real downloads. |
 | `artifacts` | 1 | | table | Artifact key to filename, relative to the bundle directory. |
 | `column_labels` | 1 | | table | Display forms for input columns and observables, copied from `[postprocessing.prediction_plots.labels]` at capture. Each entry has `display`, `unicode`, optional `latex` and `unit`. Views use these so HTML shows `ħΩ` rather than `hOmega`. Older records lack this table; the catalog then applies the schema defaults. |

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}Calculation results{% endblock %}</title>
+<title>{% block title %}{% if lineage == 'legacy' %}Legacy calculation results{% else %}Calculation results{% endif %}{% endblock %}</title>
 {# Pin the stored theme before first paint, otherwise a dark-mode reader sees a
    white flash on every page load. #}
 <script>
@@ -25,12 +25,24 @@
 <header>
   <div class="bar">
     <nav class="crumbs">
-      <a href="{{ root }}index.html">All results</a>
+      <a href="{{ catalog_href | default(root + 'index.html') }}">All results</a>
       {%- if has_comparisons %}
       <span class="sep">·</span>
       <a href="{{ root }}comparisons.html">Comparisons</a>
       {%- endif %}
       {%- block crumbs %}{% endblock %}
+    </nav>
+    <nav class="lineage-toggle" aria-label="Training-code path">
+      {% if lineage == "modern" %}
+      <span class="lineage-option is-active" aria-current="page">Modern</span>
+      {% else %}
+      <a class="lineage-option" href="{{ lineage_modern_href }}">Modern</a>
+      {% endif %}
+      {% if lineage == "legacy" %}
+      <span class="lineage-option is-active" aria-current="page">Legacy</span>
+      {% else %}
+      <a class="lineage-option" href="{{ lineage_legacy_href }}">Legacy</a>
+      {% endif %}
     </nav>
     <button type="button" class="theme-toggle" id="theme-toggle"
             aria-label="Switch between light and dark appearance">
@@ -43,7 +55,7 @@
 {% block content %}{% endblock %}
 </main>
 <footer>
-  <p>Generated {{ generated_at }} from {{ record_count }} stored result{{ '' if record_count == 1 else 's' }}.
+  <p>Generated {{ generated_at }}{% if lineage_counts %} · {{ lineage_counts.modern | default(0) }} modern · {{ lineage_counts.legacy | default(0) }} legacy{% endif %}.
      Rebuild with <code>python -m results_library.cli build</code>.</p>
 </footer>
 <script src="{{ root }}assets/app.js"></script>

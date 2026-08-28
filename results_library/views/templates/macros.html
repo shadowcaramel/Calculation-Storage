@@ -97,6 +97,7 @@
         <th data-sort="number">Value</th>
         <th data-sort="number">N models</th>
         <th data-sort="number">{{ tex(nmax_latex, nmax_label) }}</th>
+        <th data-sort="number">{{ tex(hw_latex, hw_label) }}</th>
         <th data-sort="text">Status</th>
         <th></th>
       </tr>
@@ -114,6 +115,7 @@
         <td class="num" data-value="{{ row.median if row.median is not none else '' }}">{{ tex(row.value_latex, row.value_label) }}</td>
         <td class="num" data-value="{{ row.N_models if row.N_models is not none else '' }}">{{ row.N_models | num }}</td>
         <td class="num" data-value="{{ row.bounds_Nmax_max if row.bounds_Nmax_max is not none else '' }}">{{ row.nmax_range or "" }}</td>
+        <td class="num" data-value="{{ row.bounds_hOmega_max if row.bounds_hOmega_max is not none else '' }}">{{ row.homega_range or "" }}</td>
         <td><span class="status status-{{ row.status }}">{{ row.status }}</span></td>
         <td><a href="{{ root }}results/{{ row.page }}">details</a></td>
       </tr>

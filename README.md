@@ -16,15 +16,18 @@ LOCAL DISK (heavy, prunable, not synced)
   ML output/<run>/            models, scalers, raw predictions
 
 SHARED LIBRARY (light, synced, not git)
-  bundles/<id>/               result.json + plot + plot data + config snapshot
+  bundles/{lineage}/{id}/     result.json + plot + plot data + config snapshot
+                              lineage is modern (this pipeline) or legacy (old TensorFlow scripts)
   sources/<sha256[:16]>/      shared copies of original calculation file(s) and the prepared workbook
   annotations.toml            notes, status, tags (hand-edited) <- SOURCE OF TRUTH
   comparisons.toml            multi-result figures (hand-edited, never overwritten)
   comparisons/                figure files named by comparisons.toml
   catalog.parquet             GENERATED
   catalog.db                  GENERATED
-  index.html                  GENERATED (open this; assets stay under site/)
+  index.html                  GENERATED (modern catalogue; assets stay under site/)
+  legacy.html                 GENERATED (legacy catalogue)
   site/index.html             GENERATED
+  site/legacy.html            GENERATED
   calculation_results.xlsx    GENERATED
   README.txt                  COPIED from git on each site build
 ```
@@ -66,8 +69,10 @@ browse the catalog need the same setting; see below.
 ## Opening the site from Drive
 
 Open `index.html` in the **library** folder (next to `bundles/` and `site/`),
-from Finder or File Explorer, not from drive.google.com.
-The website preview does not load CSS or follow bundle links. Do not open
+from Finder or File Explorer, not from drive.google.com. That is the modern
+pipeline catalogue. Old-code results live on `legacy.html` in the same folder
+(openable in a new tab from the header). The website preview does not load CSS
+or follow bundle links. Do not open
 `results_library/views/templates/index.html` in this git repository; that is a
 template.
 
@@ -122,6 +127,8 @@ python -m results_library.cli build --config "G:/My Drive/!ML/2026 rework/config
 | `excel` | just the workbook |
 | `lint` | check the library for inconsistencies |
 | `serve` | live filterable UI via Datasette (`pip install datasette`) |
+| `migrate-selection-folders` | one-shot v1 → v2 folder rewrite |
+| `migrate-lineage-folders` | one-shot move under `bundles/modern` or `bundles/legacy` |
 
 `--library` / `--config` work before or after the subcommand.
 
@@ -129,7 +136,13 @@ python -m results_library.cli build --config "G:/My Drive/!ML/2026 rework/config
 
 Every captured result starts as `probing`. Promote the ones that matter by adding
 a table to `annotations.toml` in the shared library, keyed by result id, then
-rebuild:
+rebuild.
+
+Lineage (`modern` / `legacy`) is a second axis, orthogonal to status: it is the
+**training-code path**, not the date and not whether the result is superseded.
+`modern` is the current pipeline; `legacy` is the old TensorFlow cluster scripts
+(including new runs of that code). Open `legacy.html` for old-code results.
+Status (`probing` / `working` / `published` / `superseded`) is unchanged.
 
 ```toml
 ["16C/2p-T2-n2--to--2p-T2-n1/BE2/2026-08-18_15-02-11_a1b2c3d4"]
@@ -159,13 +172,14 @@ The main table's Date column is the calculation day (`25 Aug 2026`), taken from
 the run stamp. Rows sort newest-first, using the hidden time of day as a
 tie-breaker. Nucleus chips follow the periodic table: proton number, then mass
 number (`⁶He` before `¹⁷C`). A name with no mass number sorts before that
-element's isotopes. Nmax is the **training window** `[min, max]`. `Nmax_final`
-(the readout) stays on the detail page.
+element's isotopes. Nmax and ħΩ are the **training windows** `[min, max]`.
+`Nmax_final` (the readout) stays on the detail page, which also shows whether
+the ħΩ-of-energy-minimum filter was on.
 
 Selection sets of one trained ensemble share a parent folder:
 
 ```text
-bundles/{nucleus}/{state}/{observable}/{YYYY-MM-DD_HH-MM-SS}_{cohort_hash}/{selection_set}_{variant_hash}/
+bundles/{lineage}/{nucleus}/{state}/{observable}/{YYYY-MM-DD_HH-MM-SS}_{cohort_hash}/{selection_set}_{variant_hash}/
 ```
 
 Older four-segment bundles (`.../{stamp}_{variant_hash}/` with no selection
@@ -177,6 +191,15 @@ python -m results_library.cli migrate-selection-folders --library "G:/Shared dri
 
 That command also rewrites matching keys in `annotations.toml` and
 `comparisons.toml`. Catalog/site builds never move files.
+
+Bundles that still sit directly under `bundles/` (no `modern/` or `legacy/`
+prefix) need a second one-shot rewrite. Classification is by tag, not by date:
+`legacy-code` → `bundles/legacy/`, otherwise `bundles/modern/`. Ids do not
+change.
+
+```bash
+python -m results_library.cli migrate-lineage-folders --library "G:/Shared drives/Calculation results/Calculation storage"
+```
 
 The nucleon-nucleon potential (`identity.potential`, stored on `variant`) appears
 after Observable. Older bundles that lack it show as unspecified.
@@ -227,11 +250,11 @@ never touches them.
 The asymmetric-uncertainty form is assembled for you:
 
 ```latex
-\begin{tabular}{lllccc}
+\begin{tabular}{lllcccc}
 \toprule
-State & Observable & Potential & Value & $N_{\mathrm{models}}$ & $N_{\max}$ \\
+State & Observable & Potential & Value & $N_{\mathrm{models}}$ & $N_{\max}$ & $\hbar\Omega$ \\
 \midrule
-$(5/2^{+},\ T{=}5/2)$ & Erel & Daejeon16 & $2.639^{+0.002}_{-0.002}$ & 744 & [2, 6] \\
+$(5/2^{+},\ T{=}5/2)$ & Erel & Daejeon16 & $2.639^{+0.002}_{-0.002}$ & 744 & [2, 6] & [13, 40] \\
 \bottomrule
 \end{tabular}
 ```

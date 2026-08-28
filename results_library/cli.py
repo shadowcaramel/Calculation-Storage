@@ -8,6 +8,7 @@ Command line interface for the results library.
     python -m results_library.cli lint    --library ...
     python -m results_library.cli serve   --library ...
     python -m results_library.cli migrate-selection-folders --library ...
+    python -m results_library.cli migrate-lineage-folders --library ...
 
 ``build`` is the everyday command: it rebuilds the catalog, the site, and the
 workbook from scratch. There is no incremental state, so nothing can end up
@@ -102,7 +103,7 @@ def command_site(args: argparse.Namespace) -> int:
     library = resolve_library(args)
     frame, _ = build_catalog(library)
     build_site(library, frame)
-    print(f"Site: {library / 'index.html'}")
+    print(f"Site: {library / 'index.html'}  (legacy: {library / 'legacy.html'})")
     return 0
 
 
@@ -157,7 +158,7 @@ def command_build(args: argparse.Namespace) -> int:
     print(f"Catalog: {len(frame)} result(s) -> {paths['parquet'].name}, {paths['sqlite'].name}")
 
     build_site(library, frame)
-    print(f"Site:    {library / 'index.html'}")
+    print(f"Site:    {library / 'index.html'}  (legacy: {library / 'legacy.html'})")
 
     if not args.no_excel:
         try:
@@ -192,6 +193,29 @@ def command_migrate_selection_folders(args: argparse.Namespace) -> int:
     if report.rewritten_files:
         action = "Would update" if args.dry_run else "Updated"
         print(f"{action}: {', '.join(report.rewritten_files)}")
+    if report.skipped:
+        print(f"Skipped {len(report.skipped)}")
+        if getattr(args, "verbose", False):
+            for message in report.skipped:
+                print(f"  {message}")
+    if report.errors:
+        print(f"{len(report.errors)} error(s)")
+        for message in report.errors:
+            print(f"  {message}")
+        return 1
+    return 0
+
+
+def command_migrate_lineage_folders(args: argparse.Namespace) -> int:
+    from results_library.migrate_lineage import migrate_lineage_folders
+
+    library = resolve_library(args)
+    report = migrate_lineage_folders(library, dry_run=args.dry_run)
+    verb = "Would move" if args.dry_run else "Moved"
+    print(f"{verb} {len(report.moved)} bundle(s) under {library / 'bundles'}")
+    for item in report.moved:
+        print(f"  {item.result_id}")
+        print(f"    -> {item.new_dir.relative_to(library)}")
     if report.skipped:
         print(f"Skipped {len(report.skipped)}")
         if getattr(args, "verbose", False):
@@ -331,6 +355,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="print the planned moves without touching the library",
     )
     migrate.set_defaults(func=command_migrate_selection_folders)
+
+    migrate_lineage = subparsers.add_parser(
+        "migrate-lineage-folders",
+        help="move unprefixed bundles under bundles/modern or bundles/legacy",
+        parents=[shared],
+    )
+    migrate_lineage.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the planned moves without touching the library",
+    )
+    migrate_lineage.set_defaults(func=command_migrate_lineage_folders)
 
     return parser
 

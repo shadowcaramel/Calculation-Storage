@@ -36,6 +36,7 @@ from results_library.views.latex import (
     tsv_table,
 )
 from results_schema.nuclides import nucleus_sort_key
+from results_schema.slugs import LINEAGES, normalize_lineage
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +194,8 @@ def _row_dict(record: Mapping[str, Any]) -> Dict[str, Any]:
             "nucleus", "nucleus_label", "state_label", "state_slug", "observable",
             "observable_label", "observable_slug", "status", "title", "note",
             "outcome", "tags", "selection_set", "config_name", "run_stamp", "id",
-            "setup_label", "potential", "run_date_label",
+            "setup_label", "potential", "run_date_label", "nmax_range",
+            "homega_range", "lineage",
         )
     )
     row["cohort_key"] = _cohort_key(row)
@@ -208,6 +210,66 @@ def _exports(rows: Iterable[Mapping[str, Any]], columns=DEFAULT_COLUMNS) -> Dict
         "tsv": tsv_table(rows, columns),
         "csv": csv_table(rows, columns),
     }
+
+
+def _row_lineage(row: Mapping[str, Any]) -> str:
+    return normalize_lineage(row.get("lineage"))
+
+
+def _split_by_lineage(rows: Iterable[Mapping[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    groups: Dict[str, List[Dict[str, Any]]] = {name: [] for name in LINEAGES}
+    for row in rows:
+        groups.setdefault(_row_lineage(row), []).append(dict(row) if not isinstance(row, dict) else row)
+    return groups
+
+
+def _lineage_counts(rows: Iterable[Mapping[str, Any]]) -> Dict[str, int]:
+    """How many *calculations* sit in each lineage, for the footer.
+
+    Diagnostic selection sets of the same trained ensemble (``all_models``,
+    ``conv_*``, …) are not separate calculations; they match the main table,
+    which keeps ``final`` plus older records that never declared a set.
+    """
+    counts = {name: 0 for name in LINEAGES}
+    for row in _main_table_rows(rows):
+        name = _row_lineage(row)
+        counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def _nuclei_by_lineage(rows: Iterable[Mapping[str, Any]]) -> Dict[str, set]:
+    groups: Dict[str, set] = {name: set() for name in LINEAGES}
+    for row in rows:
+        nucleus = str(row.get("nucleus") or "")
+        if nucleus:
+            groups.setdefault(_row_lineage(row), set()).add(nucleus)
+    return groups
+
+
+def _catalogue_filename(lineage: Optional[str]) -> str:
+    return "legacy.html" if lineage == "legacy" else "index.html"
+
+
+def _catalogue_path(lineage: Optional[str], *, at_root: bool) -> str:
+    name = _catalogue_filename(lineage)
+    return name if at_root else f"{SITE_DIRNAME}/{name}"
+
+
+def _nucleus_filename(nucleus: str, lineage: str) -> str:
+    slug = _nucleus_slug(nucleus)
+    return f"{slug}.html" if lineage == "modern" else f"{slug}-legacy.html"
+
+
+def _nucleus_path(nucleus: str, lineage: str) -> str:
+    return f"{SITE_DIRNAME}/nucleus/{_nucleus_filename(nucleus, lineage)}"
+
+
+def _page_is_library_root(page_path: str) -> bool:
+    return not page_path.replace("\\", "/").startswith(f"{SITE_DIRNAME}/")
+
+
+def _other_lineage(lineage: str) -> str:
+    return "legacy" if lineage == "modern" else "modern"
 
 
 def _href(from_page: str, to_target: str) -> str:
@@ -230,6 +292,68 @@ def _hide_probing_default(rows: Iterable[Mapping[str, Any]]) -> bool:
     hide the exploratory ones again so they do not bury the keepers.
     """
     return any((row.get("status") or "probing") != "probing" for row in rows)
+
+
+_MINIMUM_FILTER_HINT = (
+    "At each Nmax, training points on one side of the energy-versus-ħΩ "
+    "minimum are kept. Usually on for that state's energy, off for radii "
+    "and other observables."
+)
+
+
+def _minimum_filter_value(row: Mapping[str, Any]) -> str:
+    """Plain-language On/Off line for the data-selection table."""
+    from results_schema.labels import axis_unicode, observable_unicode
+
+    if not row.get("minimum_filter_enabled"):
+        return "Off"
+    output = row.get("minimum_filter_output")
+    obs = observable_unicode(str(output), column_labels=None) if output else "energy"
+    independent = axis_unicode(str(row.get("minimum_filter_independent_var") or "hOmega"))
+    group = axis_unicode(str(row.get("minimum_filter_group_by") or "Nmax"))
+    relation = "≤" if row.get("minimum_filter_keep_direction") == "left" else "≥"
+    return f"On — keep {independent} {relation} the {obs} minimum at each {group}"
+
+
+def _data_selection_rows(
+    row: Mapping[str, Any],
+) -> List[tuple[str, Optional[str], str, Optional[str]]]:
+    """``(Unicode label, math label, value, hint)`` for the detail-page table."""
+    from results_schema.labels import axis_latex, axis_unicode
+
+    nmax = axis_unicode("Nmax")
+    hw = axis_unicode("hOmega")
+    nmax_tex = axis_latex("Nmax", wrap=False)
+    hw_tex = axis_latex("hOmega", wrap=False)
+    rows: List[tuple[str, Optional[str], str, Optional[str]]] = []
+    if row.get("nmax_range"):
+        rows.append(
+            (
+                nmax,
+                nmax_tex,
+                str(row["nmax_range"]),
+                "Training-data window, same as the Nmax column on the index.",
+            )
+        )
+    if row.get("homega_range"):
+        rows.append(
+            (
+                hw,
+                hw_tex,
+                str(row["homega_range"]),
+                "Training-data window for ħΩ.",
+            )
+        )
+    if _clean(row.get("minimum_filter_enabled")) is not None:
+        rows.append(
+            (
+                "Minimum filter",
+                None,
+                _minimum_filter_value(row),
+                _MINIMUM_FILTER_HINT,
+            )
+        )
+    return rows
 
 
 def _setup_summary(row: Mapping[str, Any]) -> str:
@@ -520,6 +644,8 @@ class SiteBuilder:
 
         env.globals["nmax_label"] = axis_unicode("Nmax")
         env.globals["nmax_latex"] = axis_latex("Nmax", wrap=False)
+        env.globals["hw_label"] = axis_unicode("hOmega")
+        env.globals["hw_latex"] = axis_latex("hOmega", wrap=False)
         env.filters["num"] = _format_number
         env.filters["strip_dollars"] = _strip_dollars
         return env
@@ -550,13 +676,19 @@ class SiteBuilder:
         )
         rows.sort(key=lambda r: str(r.get("run_datetime") or ""), reverse=True)
         rows_by_id = {str(row.get("id") or ""): row for row in rows}
+        lineage_counts = _lineage_counts(rows)
+        nuclei_by_lineage = _nuclei_by_lineage(rows)
 
         self._write_exports(rows)
-        self._render_index(environment, rows, figures, rows_by_id)
-        self._render_nucleus_pages(environment, rows, figures, rows_by_id)
-        self._render_result_pages(environment, rows, figures, rows_by_id)
+        self._render_index(environment, rows, figures, rows_by_id, lineage_counts)
+        self._render_nucleus_pages(
+            environment, rows, figures, rows_by_id, lineage_counts, nuclei_by_lineage
+        )
+        self._render_result_pages(environment, rows, figures, rows_by_id, lineage_counts)
         if figures:
-            self._render_comparisons(environment, rows, figures, rows_by_id)
+            self._render_comparisons(
+                environment, rows, figures, rows_by_id, lineage_counts
+            )
 
         return self.site_root
 
@@ -601,9 +733,13 @@ class SiteBuilder:
         exports_dir = self.site_root / "exports"
         exports_dir.mkdir(parents=True, exist_ok=True)
 
-        groups: Dict[str, List[Dict[str, Any]]] = {"all": _main_table_rows(rows)}
-        for row in rows:
-            groups.setdefault(f"nucleus-{_nucleus_slug(row.get('nucleus'))}", []).append(row)
+        groups: Dict[str, List[Dict[str, Any]]] = {}
+        for lineage, lineage_rows in _split_by_lineage(rows).items():
+            suffix = "" if lineage == "modern" else "-legacy"
+            groups[f"all{suffix}"] = _main_table_rows(lineage_rows)
+            for row in lineage_rows:
+                key = f"nucleus-{_nucleus_slug(row.get('nucleus'))}{suffix}"
+                groups.setdefault(key, []).append(row)
 
         for table_id, group_rows in groups.items():
             (exports_dir / f"{table_id}.csv").write_text(
@@ -617,6 +753,30 @@ class SiteBuilder:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(template.render(**context), encoding="utf-8")
 
+    def _page_chrome(
+        self,
+        *,
+        root: str,
+        page_path: str,
+        lineage: Optional[str],
+        lineage_counts: Mapping[str, int],
+        record_count: int,
+        lineage_modern_href: Optional[str],
+        lineage_legacy_href: Optional[str],
+        catalog_href: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        filename = _catalogue_filename(lineage)
+        return {
+            "root": root,
+            "generated_at": self.generated_at,
+            "record_count": record_count,
+            "lineage": lineage,
+            "lineage_counts": dict(lineage_counts),
+            "lineage_modern_href": lineage_modern_href,
+            "lineage_legacy_href": lineage_legacy_href,
+            "catalog_href": catalog_href or f"{root}{filename}",
+        }
+
     def _index_context(
         self,
         rows: List[Dict[str, Any]],
@@ -625,6 +785,8 @@ class SiteBuilder:
         *,
         root: str,
         page_path: str,
+        lineage: str,
+        lineage_counts: Mapping[str, int],
     ) -> Dict[str, Any]:
         table_rows = _main_table_rows(rows)
         counts: Dict[str, int] = {}
@@ -634,21 +796,49 @@ class SiteBuilder:
             counts[nucleus] = counts.get(nucleus, 0) + 1
             labels.setdefault(nucleus, str(row.get("nucleus_label") or nucleus))
 
+        suffix = "" if lineage == "modern" else "-legacy"
         nuclei = [
-            {"slug": _nucleus_slug(n), "label": labels[n], "count": counts[n]}
+            {
+                "slug": _nucleus_slug(n),
+                "label": labels[n],
+                "count": counts[n],
+                "href": f"nucleus/{_nucleus_slug(n)}{suffix}.html",
+            }
             for n in sorted(counts, key=nucleus_sort_key)
         ]
-        return {
-            "root": root,
-            "rows": table_rows,
-            "nuclei": nuclei,
-            "statuses": STATUSES,
-            "hide_probing": _hide_probing_default(table_rows),
-            "exports": _exports(table_rows),
-            "generated_at": self.generated_at,
-            "record_count": len(rows),
-            "comparison_figures": _figure_views(figures, page_path, rows_by_id),
-        }
+        at_root = _page_is_library_root(page_path)
+        modern_href = (
+            None
+            if lineage == "modern"
+            else _href(page_path, _catalogue_path("modern", at_root=at_root))
+        )
+        legacy_href = (
+            None
+            if lineage == "legacy"
+            else _href(page_path, _catalogue_path("legacy", at_root=at_root))
+        )
+        export_id = "all" if lineage == "modern" else "all-legacy"
+        context = self._page_chrome(
+            root=root,
+            page_path=page_path,
+            lineage=lineage,
+            lineage_counts=lineage_counts,
+            record_count=len(rows),
+            lineage_modern_href=modern_href,
+            lineage_legacy_href=legacy_href,
+        )
+        context.update(
+            {
+                "rows": table_rows,
+                "nuclei": nuclei,
+                "statuses": STATUSES,
+                "hide_probing": _hide_probing_default(table_rows),
+                "exports": _exports(table_rows),
+                "export_id": export_id,
+                "comparison_figures": _figure_views(figures, page_path, rows_by_id),
+            }
+        )
+        return context
 
     def _render_index(
         self,
@@ -656,34 +846,42 @@ class SiteBuilder:
         rows: List[Dict[str, Any]],
         figures: List[ComparisonFigure],
         rows_by_id: Mapping[str, Mapping[str, Any]],
+        lineage_counts: Mapping[str, int],
     ) -> None:
         template = environment.get_template("index.html")
-        # Nested copy: asset and page links are same-folder (`assets/…`).
-        self._render(
-            self.site_root / "index.html",
-            template,
-            **self._index_context(
-                rows,
-                figures,
-                rows_by_id,
-                root="",
-                page_path=f"{SITE_DIRNAME}/index.html",
-            ),
-        )
-        # Library-root copy: a real HTML file, not a shortcut, so the browser
-        # still finds CSS/JS/KaTeX under site/. Drive and Windows shortcuts
-        # resolve relative URLs against the shortcut's folder and come up empty.
-        self._render(
-            self.library_root / "index.html",
-            template,
-            **self._index_context(
-                rows,
-                figures,
-                rows_by_id,
-                root=f"{SITE_DIRNAME}/",
-                page_path="index.html",
-            ),
-        )
+        by_lineage = _split_by_lineage(rows)
+        for lineage in LINEAGES:
+            lineage_rows = by_lineage.get(lineage) or []
+            filename = _catalogue_filename(lineage)
+            self._render(
+                self.site_root / filename,
+                template,
+                **self._index_context(
+                    lineage_rows,
+                    figures,
+                    rows_by_id,
+                    root="",
+                    page_path=f"{SITE_DIRNAME}/{filename}",
+                    lineage=lineage,
+                    lineage_counts=lineage_counts,
+                ),
+            )
+            # Library-root copy: a real HTML file, not a shortcut, so the browser
+            # still finds CSS/JS/KaTeX under site/. Drive and Windows shortcuts
+            # resolve relative URLs against the shortcut's folder and come up empty.
+            self._render(
+                self.library_root / filename,
+                template,
+                **self._index_context(
+                    lineage_rows,
+                    figures,
+                    rows_by_id,
+                    root=f"{SITE_DIRNAME}/",
+                    page_path=filename,
+                    lineage=lineage,
+                    lineage_counts=lineage_counts,
+                ),
+            )
 
     def _render_nucleus_pages(
         self,
@@ -691,52 +889,78 @@ class SiteBuilder:
         rows: List[Dict[str, Any]],
         figures: List[ComparisonFigure],
         rows_by_id: Mapping[str, Mapping[str, Any]],
+        lineage_counts: Mapping[str, int],
+        nuclei_by_lineage: Mapping[str, set],
     ) -> None:
         template = environment.get_template("nucleus.html")
-        by_nucleus: Dict[str, List[Dict[str, Any]]] = {}
-        for row in rows:
-            by_nucleus.setdefault(str(row.get("nucleus") or ""), []).append(row)
+        by_lineage = _split_by_lineage(rows)
+        for lineage, lineage_rows in by_lineage.items():
+            by_nucleus: Dict[str, List[Dict[str, Any]]] = {}
+            for row in lineage_rows:
+                by_nucleus.setdefault(str(row.get("nucleus") or ""), []).append(row)
 
-        for nucleus, nucleus_rows in by_nucleus.items():
-            by_state: Dict[str, List[Dict[str, Any]]] = {}
-            for row in nucleus_rows:
-                by_state.setdefault(str(row.get("state_slug") or ""), []).append(row)
+            suffix = "" if lineage == "modern" else "-legacy"
+            other = _other_lineage(lineage)
+            for nucleus, nucleus_rows in by_nucleus.items():
+                by_state: Dict[str, List[Dict[str, Any]]] = {}
+                for row in nucleus_rows:
+                    by_state.setdefault(str(row.get("state_slug") or ""), []).append(row)
 
-            groups = []
-            for state_slug in sorted(by_state):
-                state_rows = by_state[state_slug]
-                heading = state_rows[0].get("state_label") or state_slug
-                groups.append(
-                    {
-                        "heading": heading,
-                        "heading_latex": state_rows[0].get("state_latex"),
-                        "table_id": f"{_nucleus_slug(nucleus)}-{state_slug}".replace(
+                groups = []
+                for state_slug in sorted(by_state):
+                    state_rows = by_state[state_slug]
+                    heading = state_rows[0].get("state_label") or state_slug
+                    table_id = (
+                        f"{_nucleus_slug(nucleus)}-{state_slug}{suffix}".replace(
                             "--to--", "-to-"
-                        ),
-                        "rows": state_rows,
-                        "exports": _exports(state_rows),
-                    }
-                )
+                        )
+                    )
+                    groups.append(
+                        {
+                            "heading": heading,
+                            "heading_latex": state_rows[0].get("state_latex"),
+                            "table_id": table_id,
+                            "rows": state_rows,
+                            "exports": _exports(state_rows),
+                        }
+                    )
 
-            page_path = f"{SITE_DIRNAME}/nucleus/{_nucleus_slug(nucleus)}.html"
-            tabs = _selection_tabs(nucleus_rows)
-            self._render(
-                self.site_root / "nucleus" / f"{_nucleus_slug(nucleus)}.html",
-                template,
-                root="../",
-                nucleus=nucleus,
-                nucleus_label=nucleus_rows[0].get("nucleus_label") or nucleus,
-                groups=groups,
-                statuses=STATUSES,
-                hide_probing=_hide_probing_default(nucleus_rows),
-                generated_at=self.generated_at,
-                record_count=len(nucleus_rows),
-                selection_tabs=tabs,
-                default_selection=tabs[0] if tabs else None,
-                comparison_figures=_figure_views(
-                    figures_for_nucleus(figures, nucleus), page_path, rows_by_id
-                ),
-            )
+                filename = _nucleus_filename(nucleus, lineage)
+                page_path = f"{SITE_DIRNAME}/nucleus/{filename}"
+                if nucleus in (nuclei_by_lineage.get(other) or set()):
+                    other_target = _nucleus_path(nucleus, other)
+                else:
+                    other_target = _catalogue_path(other, at_root=False)
+                modern_href = (
+                    None if lineage == "modern" else _href(page_path, other_target)
+                )
+                legacy_href = (
+                    None if lineage == "legacy" else _href(page_path, other_target)
+                )
+                tabs = _selection_tabs(nucleus_rows)
+                self._render(
+                    self.site_root / "nucleus" / filename,
+                    template,
+                    nucleus=nucleus,
+                    nucleus_label=nucleus_rows[0].get("nucleus_label") or nucleus,
+                    groups=groups,
+                    statuses=STATUSES,
+                    hide_probing=_hide_probing_default(nucleus_rows),
+                    selection_tabs=tabs,
+                    default_selection=tabs[0] if tabs else None,
+                    comparison_figures=_figure_views(
+                        figures_for_nucleus(figures, nucleus), page_path, rows_by_id
+                    ),
+                    **self._page_chrome(
+                        root="../",
+                        page_path=page_path,
+                        lineage=lineage,
+                        lineage_counts=lineage_counts,
+                        record_count=len(nucleus_rows),
+                        lineage_modern_href=modern_href,
+                        lineage_legacy_href=legacy_href,
+                    ),
+                )
 
     def _render_result_pages(
         self,
@@ -744,6 +968,7 @@ class SiteBuilder:
         rows: List[Dict[str, Any]],
         figures: List[ComparisonFigure],
         rows_by_id: Mapping[str, Mapping[str, Any]],
+        lineage_counts: Mapping[str, int],
     ) -> None:
         template = environment.get_template("result.html")
 
@@ -756,6 +981,8 @@ class SiteBuilder:
             # Detail pages live in site/results/, i.e. two levels below the
             # library root, so links out to bundles resolve from there.
             page_path = f"{SITE_DIRNAME}/results/{page}"
+            lineage = _row_lineage(row)
+            nucleus = str(row.get("nucleus") or "")
 
             plots, artifacts = self._collect_artifacts(row, page_path)
             stats = [
@@ -763,6 +990,7 @@ class SiteBuilder:
                 for key, label, latex, hint in _stat_fields()
                 if row.get(key) is not None
             ]
+            data_selection = _data_selection_rows(row)
             provenance = []
             for key, label in _PROVENANCE_FIELDS:
                 if key == "source_file_path" and not _extract_is_distinct_dump(row):
@@ -793,15 +1021,26 @@ class SiteBuilder:
                 for sibling in siblings
             ]
 
+            modern_href = (
+                None
+                if lineage == "modern"
+                else _href(page_path, _catalogue_path("modern", at_root=False))
+            )
+            legacy_href = (
+                None
+                if lineage == "legacy"
+                else _href(page_path, _catalogue_path("legacy", at_root=False))
+            )
             self._render(
                 self.site_root / "results" / page,
                 template,
-                root="../",
                 row=row,
-                nucleus_slug=_nucleus_slug(row.get("nucleus")),
+                nucleus_slug=_nucleus_slug(nucleus),
+                nucleus_href=_href(page_path, _nucleus_path(nucleus, lineage)),
                 plots=plots,
                 artifacts=artifacts,
                 stats=stats,
+                data_selection=data_selection,
                 provenance=provenance,
                 siblings=sibling_rows if len(sibling_rows) > 1 else [],
                 selection_siblings=_selection_siblings(row, rows),
@@ -815,8 +1054,15 @@ class SiteBuilder:
                 bundle_href=_href(page_path, str(row.get("bundle_path") or "")),
                 exports=_exports([row]),
                 statuses=STATUSES,
-                generated_at=self.generated_at,
-                record_count=1,
+                **self._page_chrome(
+                    root="../",
+                    page_path=page_path,
+                    lineage=lineage,
+                    lineage_counts=lineage_counts,
+                    record_count=1,
+                    lineage_modern_href=modern_href,
+                    lineage_legacy_href=legacy_href,
+                ),
             )
 
     def _render_comparisons(
@@ -825,16 +1071,23 @@ class SiteBuilder:
         rows: List[Dict[str, Any]],
         figures: List[ComparisonFigure],
         rows_by_id: Mapping[str, Mapping[str, Any]],
+        lineage_counts: Mapping[str, int],
     ) -> None:
+        page_path = f"{SITE_DIRNAME}/comparisons.html"
         self._render(
             self.site_root / "comparisons.html",
             environment.get_template("comparisons.html"),
-            root="",
-            comparison_figures=_figure_views(
-                figures, f"{SITE_DIRNAME}/comparisons.html", rows_by_id
+            comparison_figures=_figure_views(figures, page_path, rows_by_id),
+            **self._page_chrome(
+                root="",
+                page_path=page_path,
+                lineage=None,
+                lineage_counts=lineage_counts,
+                record_count=len(rows),
+                lineage_modern_href=_href(page_path, _catalogue_path("modern", at_root=False)),
+                lineage_legacy_href=_href(page_path, _catalogue_path("legacy", at_root=False)),
+                catalog_href="index.html",
             ),
-            generated_at=self.generated_at,
-            record_count=len(rows),
         )
 
     def _collect_artifacts(

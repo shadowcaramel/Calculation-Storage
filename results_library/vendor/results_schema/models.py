@@ -30,9 +30,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from results_schema.identity import validate_state_declaration
 from results_schema.slugs import (
+    DEFAULT_LINEAGE,
     build_result_id,
     build_selection_stamp,
     family_of,
+    normalize_lineage,
     parity_sign,
     state_slug,
     transition_slug,
@@ -45,6 +47,7 @@ SCHEMA_VERSION = 2
 STATUSES = ("probing", "working", "published", "superseded")
 
 Status = Literal["probing", "working", "published", "superseded"]
+Lineage = Literal["modern", "legacy"]
 
 
 class _Base(BaseModel):
@@ -364,9 +367,19 @@ class ResultRecord(_Base):
     variant: Variant = Field(default_factory=Variant)
     provenance: Provenance = Field(default_factory=Provenance)
     status: Status = "probing"
+    lineage: Lineage = "modern"
     available: List[str] = Field(default_factory=list)
     artifacts: Dict[str, str] = Field(default_factory=dict)
     column_labels: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+
+    @field_validator("lineage", mode="before")
+    @classmethod
+    def _normalise_lineage(cls, value: Any) -> str:
+        if value is None or (isinstance(value, str) and not str(value).strip()):
+            return DEFAULT_LINEAGE
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
 
     @model_validator(mode="after")
     def _check_family(self) -> "ResultRecord":
@@ -395,6 +408,7 @@ class ResultRecord(_Base):
         artifacts: Optional[Mapping[str, str]] = None,
         column_labels: Optional[Mapping[str, Mapping[str, Any]]] = None,
         status: Status = "probing",
+        lineage: Lineage = "modern",
         selection_stamp: Optional[str] = None,
     ) -> "ResultRecord":
         """Assemble a record, deriving ``id`` and ``family`` from the identity."""
@@ -421,6 +435,7 @@ class ResultRecord(_Base):
             variant=variant,
             provenance=provenance or Provenance(),
             status=status,
+            lineage=normalize_lineage(lineage),  # type: ignore[arg-type]
             available=list(available or []),
             artifacts=dict(artifacts or {}),
             column_labels={

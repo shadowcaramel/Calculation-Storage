@@ -172,6 +172,7 @@ header {
 .bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--sp-4);
   max-width: var(--width);
   margin: 0 auto;
@@ -186,6 +187,35 @@ header {
 .crumbs a { color: var(--ink-2); text-decoration: none; }
 .crumbs a:hover { color: var(--accent); }
 .crumbs .sep { margin: 0 var(--sp-2); opacity: 0.4; }
+
+.lineage-toggle {
+  display: inline-flex;
+  flex: none;
+  align-items: stretch;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--fs-sm);
+}
+.lineage-option {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-1) var(--sp-3);
+  color: var(--ink-2);
+  text-decoration: none;
+  line-height: 1.2;
+}
+.lineage-option + .lineage-option {
+  border-left: 1px solid var(--line);
+}
+a.lineage-option:hover { color: var(--accent); }
+.lineage-option.is-active {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
 
 .theme-toggle {
   margin-left: auto;

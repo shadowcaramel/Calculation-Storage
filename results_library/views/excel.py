@@ -40,8 +40,10 @@ _COLUMNS: tuple[tuple[str, str], ...] = (
     ("Q3 - median", "err_high"),
     ("N models", "N_models"),
     (f"{axis_unicode('Nmax')} [min, max]", "nmax_range"),
+    (f"{axis_unicode('hOmega')} [min, max]", "homega_range"),
     (f"{axis_unicode('Nmax')} final", "Nmax_final"),
     ("Status", "status"),
+    ("Lineage", "lineage"),
     ("Note", "note"),
     ("Outcome", "outcome"),
     ("Tags", "tags"),
@@ -234,12 +236,15 @@ def _write_about(sheet, catalog: pd.DataFrame, shown: pd.DataFrame, Font) -> Non
     if not catalog.empty and "status" in catalog:
         for status, count in catalog["status"].value_counts().items():
             lines.append((f"  status: {status}", int(count)))
+    if not catalog.empty and "lineage" in catalog:
+        for lineage, count in catalog["lineage"].value_counts().items():
+            lines.append((f"  lineage: {lineage}", int(count)))
 
     lines.extend(
         [
             ("", ""),
             ("This workbook is GENERATED", "Do not edit; changes are lost on rebuild."),
-            ("Numbers come from", "bundles/<id>/result.json"),
+            ("Numbers come from", "bundles/{lineage}/<id>/result.json"),
             ("Notes come from", "annotations.toml (hand-edited, never overwritten)"),
             ("Rebuild with", "python -m results_library.cli build"),
             ("", ""),

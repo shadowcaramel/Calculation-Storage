@@ -32,6 +32,11 @@ from typing import Any, Mapping, Optional, Sequence
 
 TRANSITION_SEP = "--to--"
 
+#: Training-code path, orthogonal to curation status. Prefix of the bundle
+#: directory under ``bundles/``; not part of the result id.
+LINEAGES = ("modern", "legacy")
+DEFAULT_LINEAGE = "modern"
+
 STATE_SLUG_RE = re.compile(r"^(\d+(?:_2)?)([pm])-T(\d+(?:_2)?)-n(\d+)$")
 _DOUBLED_TOKEN_RE = re.compile(r"^(\d+)(_2)?$")
 _SAFE_SLUG_RE = re.compile(r"^[A-Za-z0-9_]+$")
@@ -430,6 +435,24 @@ def v2_id_from_v1(
         run_stamp,
         build_selection_stamp(selection_set, variant_hash),
     )
+
+
+def normalize_lineage(value: Any) -> str:
+    """``modern`` or ``legacy``; anything else becomes ``modern``."""
+    text = str(value or "").strip().lower()
+    return text if text in LINEAGES else DEFAULT_LINEAGE
+
+
+def bundle_dir_segments(lineage: Any, result_id: str) -> tuple[str, ...]:
+    """Filesystem segments under ``bundles/``: ``(lineage, *id_parts)``."""
+    parts = [p for p in str(result_id).replace("\\", "/").split("/") if p]
+    return (normalize_lineage(lineage), *parts)
+
+
+def lineage_prefix(relative: str) -> Optional[str]:
+    """First path segment if it is a known lineage, else ``None``."""
+    first = str(relative).replace("\\", "/").lstrip("/").split("/", 1)[0]
+    return first if first in LINEAGES else None
 
 
 def declared_states_are_unique(

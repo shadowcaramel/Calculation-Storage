@@ -5,7 +5,8 @@ Shared library of nuclear-structure calculation results (values, plots,
 and provenance). Use Google Drive for desktop, not only the website.
 
 OPEN THE CATALOG
-  Double-click  index.html  in this folder.
+  Double-click  index.html  in this folder (modern pipeline).
+  Old-code results: double-click  legacy.html.
   Do not use the Google Drive website preview (it will look unstyled).
   
 
@@ -29,6 +30,6 @@ MACOS + CHROME
 
 WHAT TO EDIT
   annotations.toml and comparisons.toml are hand-edited.
-  Do not edit index.html, site/, catalog.*, or the Excel workbook;
+  Do not edit index.html, legacy.html, site/, catalog.*, or the Excel workbook;
   they are regenerated.
 

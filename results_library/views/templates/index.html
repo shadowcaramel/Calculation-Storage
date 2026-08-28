@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% from "macros.html" import table_block %}
-{% block title %}Calculation results{% endblock %}
+{% block title %}{% if lineage == 'legacy' %}Legacy calculation results{% else %}Calculation results{% endif %}{% endblock %}
 
 {% block content %}
-<h1>Calculation results</h1>
+<h1>{% if lineage == 'legacy' %}Legacy calculation results{% else %}Calculation results{% endif %}</h1>
 
 <section class="controls">
   <input type="search" id="filter-text" placeholder="Filter by nucleus, state, observable, note..." autocomplete="off">
@@ -23,7 +23,7 @@
 {% if nuclei or comparison_figures %}
 <section class="nuclei">
   {% for nucleus in nuclei %}
-  <a class="chip" href="{{ root }}nucleus/{{ nucleus.slug }}.html">{{ nucleus.label }}
+  <a class="chip" href="{{ root }}{{ nucleus.href }}">{{ nucleus.label }}
     <span class="chip-count">{{ nucleus.count }}</span></a>
   {% endfor %}
   {% if comparison_figures %}
@@ -33,5 +33,5 @@
 </section>
 {% endif %}
 
-{{ table_block(rows, "All results", "all", root, exports) }}
+{{ table_block(rows, "All results", export_id | default("all"), root, exports) }}
 {% endblock %}

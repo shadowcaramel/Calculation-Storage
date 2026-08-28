@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
@@ -26,6 +27,7 @@ import pandas as pd
 
 from results_library.annotations import load_annotations, merge_annotation
 from results_library.migrations import apply_migrations
+from results_schema.slugs import DEFAULT_LINEAGE, LINEAGES, lineage_prefix, normalize_lineage
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +124,69 @@ def _format_bound(value: Any) -> str:
     return str(value)
 
 
+def _bounds_range(row: Mapping[str, Any], column: str) -> Optional[str]:
+    """``[min, max]`` for one training-window column, or ``None`` if absent."""
+    low = row.get(f"bounds_{column}_min")
+    high = row.get(f"bounds_{column}_max")
+    if low is None and high is None:
+        return None
+    return f"[{_format_bound(low)}, {_format_bound(high)}]"
+
+
+def _minimum_filter_from_snapshot(bundle_dir: Path) -> Dict[str, Any]:
+    """Whether the ħΩ-of-energy-minimum cut was applied, from the frozen config.
+
+    This is not stored on ``variant`` (that would change result hashes). Every
+    captured bundle already carries ``config_snapshot.toml``, so the catalog
+    reads it. No snapshot means the fields stay unset and the detail page omits
+    the row.
+    """
+    empty: Dict[str, Any] = {
+        "minimum_filter_enabled": None,
+        "minimum_filter_output": None,
+        "minimum_filter_keep_direction": None,
+        "minimum_filter_group_by": None,
+        "minimum_filter_independent_var": None,
+    }
+    path = Path(bundle_dir) / "config_snapshot.toml"
+    if not path.is_file():
+        return empty
+    try:
+        with path.open("rb") as handle:
+            data = tomllib.load(handle)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        logger.warning("Could not read data-selection snapshot %s: %s", path, exc)
+        return empty
+
+    selecting = ((data.get("preprocessing") or {}).get("data_selecting") or {})
+    if not isinstance(selecting, dict):
+        selecting = {}
+    filt = selecting.get("minimum_filter") or {}
+    if not isinstance(filt, dict):
+        filt = {}
+
+    output = filt.get("output_column")
+    if isinstance(output, list):
+        output = ", ".join(str(item) for item in output if item) or None
+    elif output is not None:
+        output = str(output).strip() or None
+
+    applied = bool(selecting.get("enabled", False)) and bool(filt.get("enabled", False))
+    return {
+        "minimum_filter_enabled": applied,
+        "minimum_filter_output": output,
+        "minimum_filter_keep_direction": (
+            str(filt["keep_direction"]) if filt.get("keep_direction") else None
+        ),
+        "minimum_filter_group_by": (
+            str(filt["group_by"]) if filt.get("group_by") else None
+        ),
+        "minimum_filter_independent_var": (
+            str(filt["independent_var"]) if filt.get("independent_var") else None
+        ),
+    }
+
+
 def _state_columns(state: Optional[Dict[str, Any]], prefix: str) -> Dict[str, Any]:
     if not state:
         return {}
@@ -183,6 +248,19 @@ def _display_labels(record: Dict[str, Any]) -> Dict[str, Any]:
     return labels
 
 
+def _resolve_lineage(scanned: ScannedRecord, library_root: Path) -> str:
+    """``result.json`` first, then ``bundles/modern|legacy/`` prefix, else modern."""
+    raw = scanned.data.get("lineage")
+    if isinstance(raw, str) and raw.strip() and raw.strip().lower() in LINEAGES:
+        return normalize_lineage(raw)
+    try:
+        relative = scanned.bundle_dir.relative_to(Path(library_root) / BUNDLES_DIRNAME)
+    except ValueError:
+        return DEFAULT_LINEAGE
+    prefix = lineage_prefix(relative.as_posix())
+    return prefix or DEFAULT_LINEAGE
+
+
 def flatten_record(
     scanned: ScannedRecord,
     library_root: Path,
@@ -208,6 +286,7 @@ def flatten_record(
         "id": result_id,
         "family": record.get("family"),
         "schema_version": record.get("schema_version"),
+        "lineage": _resolve_lineage(scanned, library_root),
         "nucleus": segments[0] if segments else None,
         "state_slug": segments[1] if len(segments) > 1 else None,
         "observable_slug": segments[2] if len(segments) > 2 else None,
@@ -259,12 +338,9 @@ def flatten_record(
         record.get("column_labels"),
         potential=variant.get("potential"),
     )
-    nmax_min = row.get("bounds_Nmax_min")
-    nmax_max = row.get("bounds_Nmax_max")
-    if nmax_min is not None or nmax_max is not None:
-        row["nmax_range"] = f"[{_format_bound(nmax_min)}, {_format_bound(nmax_max)}]"
-    else:
-        row["nmax_range"] = None
+    row["nmax_range"] = _bounds_range(row, "Nmax")
+    row["homega_range"] = _bounds_range(row, "hOmega")
+    row.update(_minimum_filter_from_snapshot(scanned.bundle_dir))
 
     # Reference
     row["reference_nucleus"] = reference.get("nucleus")
@@ -387,7 +463,7 @@ def write_sqlite(frame: pd.DataFrame, library_root: Path) -> Path:
                     "Could not create a unique index on results.id "
                     "(duplicate ids?). Run lint for details."
                 )
-            for column in ("family", "nucleus", "observable", "status"):
+            for column in ("family", "nucleus", "observable", "status", "lineage"):
                 if column in frame.columns:
                     connection.execute(
                         f"CREATE INDEX idx_results_{column} "

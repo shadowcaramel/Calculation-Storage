@@ -19,7 +19,8 @@ from typing import Any, Dict, List
 
 from results_library import SUPPORTED_SCHEMA_VERSION
 from results_library.annotations import lint_annotations, load_annotations
-from results_library.catalog import ScanResult
+from results_library.catalog import BUNDLES_DIRNAME, ScanResult
+from results_schema.slugs import bundle_dir_segments, lineage_prefix, normalize_lineage
 
 #: Ordered by how much they should worry you.
 SEVERITIES = ("error", "warning", "info")
@@ -63,9 +64,10 @@ def _check_duplicate_ids(scan: ScanResult) -> List[LintIssue]:
     return issues
 
 
-def _check_id_matches_location(scan: ScanResult) -> List[LintIssue]:
-    """The bundle path mirrors the id; a mismatch means one was hand-edited."""
+def _check_id_matches_location(scan: ScanResult, library_root: Path) -> List[LintIssue]:
+    """The bundle path is ``bundles/{lineage}/{id}``; a mismatch is a hand-edit."""
     issues: List[LintIssue] = []
+    bundles_root = Path(library_root) / BUNDLES_DIRNAME
     for record in scan.records:
         if not record.result_id:
             issues.append(
@@ -73,20 +75,54 @@ def _check_id_matches_location(scan: ScanResult) -> List[LintIssue]:
             )
             continue
 
-        expected_tail = record.result_id.replace("/", "\\") if "\\" in str(
-            record.bundle_dir
-        ) else record.result_id
-        if not str(record.bundle_dir).replace("\\", "/").endswith(
-            record.result_id.replace("\\", "/")
-        ):
+        canonical_id = record.result_id.replace("\\", "/")
+        try:
+            relative = record.bundle_dir.relative_to(bundles_root).as_posix()
+        except ValueError:
+            relative = str(record.bundle_dir).replace("\\", "/")
+
+        if not relative.endswith(canonical_id):
             issues.append(
                 LintIssue(
                     "warning",
                     "path-mismatch",
                     f"{record.result_id} is stored at {record.bundle_dir}, which "
-                    f"does not end with the id (expected .../{expected_tail})",
+                    f"does not end with the id (expected .../{canonical_id})",
                 )
             )
+            continue
+
+        field = normalize_lineage(record.data.get("lineage"))
+        prefix = lineage_prefix(relative)
+        if prefix is None:
+            issues.append(
+                LintIssue(
+                    "warning",
+                    "missing-lineage-prefix",
+                    f"{record.result_id} sits at {record.bundle_dir}; expected "
+                    f"bundles/{field}/{canonical_id}",
+                )
+            )
+        elif prefix != field:
+            issues.append(
+                LintIssue(
+                    "warning",
+                    "lineage-mismatch",
+                    f"{record.result_id} has lineage {field!r} but is stored under "
+                    f"{prefix}/ (expected bundles/{field}/{canonical_id})",
+                )
+            )
+        else:
+            expected = "/".join(bundle_dir_segments(field, canonical_id))
+            if relative != expected:
+                issues.append(
+                    LintIssue(
+                        "warning",
+                        "path-mismatch",
+                        f"{record.result_id} is stored at {record.bundle_dir}, "
+                        f"expected .../{expected}",
+                    )
+                )
     return issues
 
 
@@ -246,7 +282,7 @@ def lint_library(library_root: Path, scan: ScanResult) -> List[LintIssue]:
     issues: List[LintIssue] = []
     issues.extend(_check_unreadable(scan))
     issues.extend(_check_duplicate_ids(scan))
-    issues.extend(_check_id_matches_location(scan))
+    issues.extend(_check_id_matches_location(scan, library_root))
     issues.extend(_check_family(scan))
     issues.extend(_check_artifacts(scan))
     issues.extend(_check_conflicting_isospin(scan))

@@ -16,6 +16,7 @@ from typing import Dict, List, Mapping, Tuple
 from results_library.catalog import BUNDLES_DIRNAME, scan_bundles
 from results_library.comparisons import COMPARISONS_FILENAME
 from results_library.migrations.v1_selection_folders import rewrite_v1_record
+from results_schema.slugs import LINEAGES
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +75,26 @@ def plan_selection_folder_moves(library_root: Path) -> Tuple[List[PlannedMove], 
             skipped.append(f"{old_id}: rewrite left the id unchanged")
             continue
 
+        id_path = Path(*new_id.split("/"))
+        prefix = None
+        try:
+            relative = scanned.bundle_dir.relative_to(
+                library_root / BUNDLES_DIRNAME
+            )
+            if relative.parts and relative.parts[0] in LINEAGES:
+                prefix = relative.parts[0]
+        except ValueError:
+            prefix = None
+        new_dir = library_root / BUNDLES_DIRNAME / (
+            (Path(prefix) / id_path) if prefix else id_path
+        )
+
         planned.append(
             PlannedMove(
                 old_id=old_id,
                 new_id=new_id,
                 old_dir=scanned.bundle_dir,
-                new_dir=library_root / BUNDLES_DIRNAME / Path(*new_id.split("/")),
+                new_dir=new_dir,
                 record=rewritten,
             )
         )

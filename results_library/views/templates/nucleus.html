@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "macros.html" import figure_cards, selection_tab_bar, table_block %}
-{% block title %}{{ nucleus }} results{% endblock %}
+{% block title %}{{ nucleus }}{% if lineage == 'legacy' %} (legacy){% endif %} results{% endblock %}
 
 {% block crumbs %}
   <span class="sep">/</span><span>{{ nucleus_label }}</span>

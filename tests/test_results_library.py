@@ -49,6 +49,7 @@ from results_schema.models import (  # noqa: E402
     Subject,
     Variant,
 )
+from results_schema.slugs import bundle_dir_segments  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +58,21 @@ from results_schema.models import (  # noqa: E402
 
 _PLOT = b"fake-png-bytes"
 _CSV = "x,y\n1,2\n"
+
+
+def _min_filter_snapshot(*, enabled: bool, selecting: bool = True) -> str:
+    flag = "true" if enabled else "false"
+    master = "true" if selecting else "false"
+    return (
+        "[preprocessing.data_selecting]\n"
+        f"enabled = {master}\n"
+        "[preprocessing.data_selecting.minimum_filter]\n"
+        f"enabled = {flag}\n"
+        'output_column = "Eabs"\n'
+        'group_by = "Nmax"\n'
+        'independent_var = "hOmega"\n'
+        'keep_direction = "right"\n'
+    )
 
 
 def _computed(**overrides) -> Computed:
@@ -150,9 +166,13 @@ def _place(
     files: dict | None = None,
     path_id: str | None = None,
 ) -> Path:
-    """Write a bundle at ``bundles/<id>/``, plus any extra artifact files."""
-    result_id = path_id if path_id is not None else record.id
-    bundle = library / "bundles" / Path(*result_id.split("/"))
+    """Write a bundle at ``bundles/{lineage}/{id}/``, plus any extra artifact files."""
+    if path_id is not None:
+        bundle = library / "bundles" / Path(*path_id.split("/"))
+    else:
+        bundle = library / "bundles" / Path(
+            *bundle_dir_segments(record.lineage, record.id)
+        )
     bundle.mkdir(parents=True, exist_ok=True)
     record.write_json(bundle / "result.json")
     extras = files if files is not None else {
@@ -333,8 +353,12 @@ class TestCatalog:
         assert working["observable_label"] == "E\u1d63\u2091\u2097"
         assert working["potential"] == "Daejeon16"
         assert working["nmax_range"] == "[2, 6]"
+        assert working["homega_range"] == "[13, 40]"
+        assert pd.isna(working["minimum_filter_enabled"]) or working["minimum_filter_enabled"] is None
         assert working["setup_label"].startswith("Daejeon16")
         assert "\u0127\u03a9" in working["setup_label"]
+        assert working["lineage"] == "modern"
+        assert str(working["bundle_path"]).startswith("bundles/modern/")
 
         transition = frame[frame["nucleus"] == "16C"].iloc[0]
         assert transition["subject_kind"] == "transition"
@@ -375,6 +399,36 @@ class TestCatalog:
         assert row["source_files_name"] == "raw.xlsx"
         assert row["provenance_check_verdict"] == "pass"
         assert row["provenance_check_n_rows_matched"] == 4
+
+    def test_lineage_from_field_prefix_and_default(self, tmp_path):
+        library = tmp_path / "lineage"
+        library.mkdir()
+
+        unprefixed = _he6_record("unprefixed")
+        data = json.loads(unprefixed.to_json())
+        data.pop("lineage", None)
+        bundle = library / "bundles" / Path(*unprefixed.id.split("/"))
+        bundle.mkdir(parents=True, exist_ok=True)
+        (bundle / "result.json").write_text(json.dumps(data), encoding="utf-8")
+
+        prefixed = _he6_record("prefixed", lineage="legacy")
+        data = json.loads(prefixed.to_json())
+        data.pop("lineage", None)
+        bundle = library / "bundles" / "legacy" / Path(*prefixed.id.split("/"))
+        bundle.mkdir(parents=True, exist_ok=True)
+        (bundle / "result.json").write_text(json.dumps(data), encoding="utf-8")
+
+        fielded = _he6_record("fielded", lineage="legacy")
+        _place(library, fielded, files={})
+
+        frame, _ = build_catalog(library)
+        by_stamp = {
+            str(row["run_stamp"]): row["lineage"]
+            for _, row in frame.iterrows()
+        }
+        assert by_stamp["unprefixed"] == "modern"
+        assert by_stamp["prefixed"] == "legacy"
+        assert by_stamp["fielded"] == "legacy"
 
     def test_rebuild_is_from_scratch(self, library):
         frame, _ = build_catalog(library)
@@ -463,6 +517,28 @@ class TestLint:
         assert "path-mismatch" in kinds
         assert "annotation" in kinds
 
+    def test_missing_lineage_prefix_and_mismatch(self, tmp_path):
+        library = tmp_path / "lin-lint"
+        library.mkdir()
+        unprefixed = _he6_record("bare")
+        data = json.loads(unprefixed.to_json())
+        data.pop("lineage", None)
+        bundle = library / "bundles" / Path(*unprefixed.id.split("/"))
+        bundle.mkdir(parents=True, exist_ok=True)
+        (bundle / "result.json").write_text(json.dumps(data), encoding="utf-8")
+
+        mismatched = _he6_record("mismatch", lineage="modern")
+        _place(
+            library,
+            mismatched,
+            path_id="legacy/" + mismatched.id,
+            files={},
+        )
+        issues = lint_library(library, scan_bundles(library))
+        kinds = {i.kind for i in issues}
+        assert "missing-lineage-prefix" in kinds
+        assert "lineage-mismatch" in kinds
+
     def test_duplicate_ids_do_not_abort_catalog_write(self, tmp_path):
         library = tmp_path / "dupwrite"
         library.mkdir()
@@ -514,6 +590,7 @@ class TestLatex:
         assert "Erel" in csv_text
         assert "Potential" in tex
         assert "$N_{\\max}$" in tex
+        assert "$\\hbar\\Omega$" in tex
 
     def test_latex_escapes_plain_text_but_not_math(self):
         rows = [{"observable": "A_b", "state_latex": "$(2^{+})$", "value_latex": "1"}]
@@ -576,6 +653,69 @@ class TestSite:
         assert "help-mark" in html
         assert "Nmax at which the extrapolated value is read off" in html
         assert "Daejeon16" in html
+        assert "Data selection" in html
+        assert "[2, 6]" in html
+        assert "[13, 40]" in html
+        assert "Minimum filter" not in html
+        assert (library / "legacy.html").exists()
+        assert (site / "legacy.html").exists()
+        assert 'href="legacy.html"' in index
+        assert "modern" in (library / "index.html").read_text(encoding="utf-8")
+
+    def test_modern_and_legacy_catalogues_are_split(self, tmp_path):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        library = tmp_path / "split"
+        library.mkdir()
+        modern = _he6_record("2026-08-18_mod")
+        legacy = ResultRecord.build(
+            subject=Subject.single(
+                "6Li", StateRecord(J2=2, parity="+", T2=0, index=1)
+            ),
+            observable=Observable(slug="Eabs", name="Eabs", units="MeV"),
+            computed=_computed(),
+            run_stamp="2024-03-05_leg",
+            lineage="legacy",
+            artifacts={"histogram_plot": "histogram.png"},
+            available=["histogram"],
+        )
+        _place(library, modern, files={"histogram.png": _PLOT})
+        _place(library, legacy, files={"histogram.png": _PLOT})
+        frame, _ = build_catalog(library)
+        site = build_site(library, frame)
+
+        index = (site / "index.html").read_text(encoding="utf-8")
+        legacy_page = (site / "legacy.html").read_text(encoding="utf-8")
+        assert "nucleus/6He.html" in index
+        assert "nucleus/6Li" not in index
+        assert "nucleus/6Li-legacy.html" in legacy_page
+        assert "nucleus/6He.html" not in legacy_page
+        assert 'href="legacy.html"' in index
+        assert 'href="index.html"' in legacy_page
+        assert "lineage-toggle" in index
+        assert "1 modern" in index
+        assert "1 legacy" in index
+        assert (site / "nucleus" / "6He.html").exists()
+        assert not (site / "nucleus" / "6He-legacy.html").exists()
+        assert (site / "nucleus" / "6Li-legacy.html").exists()
+        assert not (site / "nucleus" / "6Li.html").exists()
+
+        root_legacy = (library / "legacy.html").read_text(encoding="utf-8")
+        assert 'href="site/assets/style.css"' in root_legacy
+        assert 'href="site/nucleus/6Li-legacy.html"' in root_legacy
+
+        detail = (
+            site / "results" / (legacy.id.replace("/", "__") + ".html")
+        ).read_text(encoding="utf-8")
+        assert 'href="../legacy.html"' in detail
+        assert 'href="../nucleus/6Li-legacy.html"' in detail
+
+        modern_detail = (
+            site / "results" / (modern.id.replace("/", "__") + ".html")
+        ).read_text(encoding="utf-8")
+        assert 'href="../index.html"' in modern_detail
+        assert 'href="../nucleus/6He.html"' in modern_detail
 
     def test_detail_page_shows_selected_data_plot_first(self, tmp_path):
         pytest.importorskip("jinja2")
@@ -614,6 +754,47 @@ class TestSite:
         assert ensemble != -1
         assert selected < histogram < ensemble
         assert "selected_data_Erel.jpg" in page
+
+    def test_detail_page_reports_minimum_filter_from_snapshot(self, tmp_path):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        def _page_for(*, enabled: bool, selecting: bool = True) -> str:
+            library = tmp_path / f"minfilt-{enabled}-{selecting}"
+            library.mkdir()
+            record = _he6_record(f"2026-08-18_filt_{int(enabled)}")
+            _place(
+                library,
+                record,
+                files={
+                    "histogram.png": _PLOT,
+                    "config_snapshot.toml": _min_filter_snapshot(
+                        enabled=enabled, selecting=selecting
+                    ),
+                },
+            )
+            frame, _ = build_catalog(library)
+            row = frame.iloc[0]
+            expected = bool(enabled and selecting)
+            assert bool(row["minimum_filter_enabled"]) is expected
+            assert row["minimum_filter_output"] == "Eabs"
+            site = build_site(library, frame)
+            page = site / "results" / (row["id"].replace("/", "__") + ".html")
+            return page.read_text(encoding="utf-8")
+
+        on = _page_for(enabled=True)
+        assert "Data selection" in on
+        assert "Minimum filter" in on
+        assert "On — keep" in on
+        assert "minimum at each" in on
+
+        off = _page_for(enabled=False)
+        assert "Minimum filter" in off
+        assert ">Off<" in off or "\nOff\n" in off or ">Off</td>" in off
+
+        skipped = _page_for(enabled=True, selecting=False)
+        assert "Minimum filter" in skipped
+        assert "On — keep" not in skipped
 
     def test_date_column_sorts_newest_first(self, tmp_path):
         pytest.importorskip("jinja2")
@@ -795,6 +976,8 @@ class TestSite:
         nucleus_csv = (site / "exports" / "nucleus-6He.csv").read_text(encoding="utf-8")
         assert all_csv.count("\n") == 2  # header + final row
         assert nucleus_csv.count("\n") == 3  # header + both selection sets
+        assert "1 modern" in index
+        assert "0 legacy" in index
 
         nucleus = (site / "nucleus" / "6He.html").read_text(encoding="utf-8")
         assert "data-selection-tabs" in nucleus
@@ -896,8 +1079,10 @@ class TestExcel:
         assert he6.cell(row=1, column=1).value == "Date"
         assert he6.cell(row=2, column=4).value == "Daejeon16"
         assert he6.cell(row=2, column=10).value == "[2, 6]"
-        assert he6.cell(row=2, column=12).value == "working"
-        assert he6.cell(row=2, column=13).value == "Own sample weights."
+        assert he6.cell(row=2, column=11).value == "[13, 40]"
+        assert he6.cell(row=2, column=13).value == "working"
+        assert he6.cell(row=2, column=14).value == "modern"
+        assert he6.cell(row=2, column=15).value == "Own sample weights."
 
         # 16C transition is still probing, so it is not shown.
         assert "16C" not in workbook.sheetnames
@@ -917,8 +1102,8 @@ class TestExcel:
         frame, _ = build_catalog(library)
         path = build_workbook(library, frame, include_probing=False)
         sheet = load_workbook(path)["6He"]
-        plot_cell = sheet.cell(row=2, column=18)  # Plot
-        details = sheet.cell(row=2, column=21)  # Details
+        plot_cell = sheet.cell(row=2, column=20)  # Plot
+        details = sheet.cell(row=2, column=23)  # Details
         assert plot_cell.hyperlink is not None
         assert "histogram.png" in str(plot_cell.hyperlink.target)
         assert details.hyperlink is not None
@@ -950,8 +1135,11 @@ class TestCLI:
         assert (library / "catalog.parquet").exists()
         assert (library / "catalog.db").exists()
         assert (library / "site" / "index.html").exists()
+        assert (library / "site" / "legacy.html").exists()
         assert (library / "index.html").exists()
+        assert (library / "legacy.html").exists()
         assert (library / "README.txt").exists()
+        assert (library / "legacy.html").exists()
         assert (library / "calculation_results.xlsx").exists()
         # The human layer is never overwritten.
         text = (library / "annotations.toml").read_text(encoding="utf-8")
@@ -1017,6 +1205,56 @@ class TestCLI:
         assert remaining[0].parent.parent.name.endswith(moved["variant"]["cohort_hash"])
         assert old_id not in (library / "annotations.toml").read_text(encoding="utf-8")
         assert moved["id"] in (library / "annotations.toml").read_text(encoding="utf-8")
+
+    def test_migrate_lineage_folders_uses_legacy_code_tag(self, tmp_path):
+        library = tmp_path / "lin-mig"
+        library.mkdir()
+        modern = _he6_record("mod")
+        tagged = ResultRecord.build(
+            subject=Subject.single(
+                "6Li", StateRecord(J2=2, parity="+", T2=0, index=1)
+            ),
+            observable=Observable(slug="Eabs", name="Eabs", units="MeV"),
+            computed=_computed(),
+            run_stamp="leg",
+            artifacts={},
+            available=[],
+        )
+        already = _he6_record("already")
+
+        for record in (modern, tagged):
+            data = json.loads(record.to_json())
+            data.pop("lineage", None)
+            bundle = library / "bundles" / Path(*record.id.split("/"))
+            bundle.mkdir(parents=True, exist_ok=True)
+            (bundle / "result.json").write_text(
+                json.dumps(data), encoding="utf-8"
+            )
+        _place(library, already, files={})
+        library.joinpath("annotations.toml").write_text(
+            f'["{tagged.id}"]\ntags = ["legacy-code"]\n',
+            encoding="utf-8",
+        )
+
+        assert cli_main(
+            ["migrate-lineage-folders", "--library", str(library), "--dry-run"]
+        ) == 0
+        still_unprefixed = [
+            p for p in (library / "bundles").rglob("result.json")
+            if "modern" not in p.parts and "legacy" not in p.parts
+        ]
+        assert len(still_unprefixed) == 2
+
+        assert cli_main(["migrate-lineage-folders", "--library", str(library)]) == 0
+        modern_path = library / "bundles" / "modern" / Path(*modern.id.split("/")) / "result.json"
+        legacy_path = library / "bundles" / "legacy" / Path(*tagged.id.split("/")) / "result.json"
+        already_path = library / "bundles" / "modern" / Path(*already.id.split("/")) / "result.json"
+        assert modern_path.is_file()
+        assert legacy_path.is_file()
+        assert already_path.is_file()
+        assert json.loads(modern_path.read_text(encoding="utf-8"))["lineage"] == "modern"
+        assert json.loads(legacy_path.read_text(encoding="utf-8"))["lineage"] == "legacy"
+        assert not (library / "bundles" / Path(*modern.id.split("/")) / "result.json").exists()
 
     def test_library_flag_works_before_or_after_subcommand(self, library):
         assert cli_main(["--library", str(library), "catalog"]) == 0

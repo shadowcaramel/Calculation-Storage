@@ -29,6 +29,7 @@ COLUMN_HEADERS: dict[str, tuple[str, str]] = {
     "N_models": ("$N_{\\mathrm{models}}$", "N_models"),
     "Nmax_final": ("$N_{\\max}^{u}$", "Nmax_final"),
     "nmax_range": ("$N_{\\max}$", "Nmax"),
+    "homega_range": ("$\\hbar\\Omega$", "hOmega"),
     "potential": ("Potential", "Potential"),
     "units": ("Units", "Units"),
     "status": ("Status", "Status"),
@@ -43,6 +44,7 @@ DEFAULT_COLUMNS: tuple[str, ...] = (
     "value",
     "N_models",
     "nmax_range",
+    "homega_range",
 )
 
 #: Columns rendered in math mode in LaTeX output.
