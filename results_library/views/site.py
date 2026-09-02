@@ -228,7 +228,8 @@ def _lineage_counts(rows: Iterable[Mapping[str, Any]]) -> Dict[str, int]:
 
     Diagnostic selection sets of the same trained ensemble (``all_models``,
     ``conv_*``, …) are not separate calculations; they match the main table,
-    which keeps ``final`` plus older records that never declared a set.
+    which keeps ``final`` when that set exists, otherwise ``all_models``,
+    otherwise every row of the family.
     """
     counts = {name: 0 for name in LINEAGES}
     for row in _main_table_rows(rows):
@@ -411,21 +412,48 @@ def _nmax_scan_key(row: Mapping[str, Any]) -> str:
     ))
 
 
+_HEADLINE_SELECTION = "final"
+_FALLBACK_HEADLINE = "all_models"
+
+
+def _selection_name(row: Mapping[str, Any]) -> str:
+    return str(row.get("selection_set") or "").strip()
+
+
 def _is_main_table_row(row: Mapping[str, Any]) -> bool:
-    """Whether a result belongs on the index table.
+    """Whether a result belongs on the index table when ``final`` exists.
 
     Diagnostic selection sets (``all_models``, ``conv_Eexc``, …) stay on
     nucleus and detail pages. The main list is the ``final`` subset, plus
     older records that never declared a selection set.
     """
-    name = row.get("selection_set")
-    if name is None or str(name).strip() == "":
-        return True
-    return str(name) == "final"
+    name = _selection_name(row)
+    return name == "" or name == _HEADLINE_SELECTION
 
 
 def _main_table_rows(rows: Iterable[Mapping[str, Any]]) -> List[Dict[str, Any]]:
-    return [row for row in rows if _is_main_table_row(row)]
+    """Index rows: ``final`` when present, else ``all_models``, else the family.
+
+    A capture that never produced ``final`` (legacy 10Be uses ``all_models``
+    and ``23_loss_straight_ns``) must still appear on the catalog page.
+    """
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for row in rows:
+        item = dict(row) if not isinstance(row, dict) else row
+        grouped.setdefault(str(item.get("family") or ""), []).append(item)
+
+    out: List[Dict[str, Any]] = []
+    for group in grouped.values():
+        names = {_selection_name(row) for row in group}
+        if "" in names or _HEADLINE_SELECTION in names:
+            out.extend(row for row in group if _is_main_table_row(row))
+        elif _FALLBACK_HEADLINE in names:
+            out.extend(
+                row for row in group if _selection_name(row) == _FALLBACK_HEADLINE
+            )
+        else:
+            out.extend(group)
+    return out
 
 
 def _selection_tabs(rows: Iterable[Mapping[str, Any]]) -> List[str]:
@@ -443,9 +471,10 @@ def _selection_tabs(rows: Iterable[Mapping[str, Any]]) -> List[str]:
     if len(names) < 2:
         return []
     names.sort()
-    if "final" in names:
-        names.remove("final")
-        names.insert(0, "final")
+    for preferred in (_FALLBACK_HEADLINE, _HEADLINE_SELECTION):
+        if preferred in names:
+            names.remove(preferred)
+            names.insert(0, preferred)
     return names
 
 

@@ -990,6 +990,50 @@ class TestSite:
         assert "all_models" in page
         assert ">final<" in page
 
+    def test_main_table_falls_back_to_all_models_when_no_final(self, tmp_path):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        library = tmp_path / "no-final"
+        library.mkdir()
+        bounds = {"Nmax": [2, 12], "hOmega": [13, 40]}
+        provenance = Provenance(run_dir="run-be", source_sheet="10Be")
+        _place(
+            library,
+            _he6_record(
+                "2025-06-11_all",
+                variant=Variant(
+                    selection_set="all_models", bounds=bounds, potential="Daejeon16"
+                ),
+                provenance=provenance,
+            ),
+        )
+        _place(
+            library,
+            _he6_record(
+                "2025-06-11_filt",
+                variant=Variant(
+                    selection_set="23_loss_straight_ns",
+                    bounds=bounds,
+                    potential="Daejeon16",
+                ),
+                provenance=provenance,
+            ),
+        )
+        frame, _ = build_catalog(library)
+        site = build_site(library, frame)
+        index = (site / "index.html").read_text(encoding="utf-8")
+        assert 'data-selection="all_models"' in index
+        assert 'data-selection="23_loss_straight_ns"' not in index
+        all_csv = (site / "exports" / "all.csv").read_text(encoding="utf-8")
+        nucleus_csv = (site / "exports" / "nucleus-6He.csv").read_text(encoding="utf-8")
+        assert all_csv.count("\n") == 2  # header + all_models
+        assert nucleus_csv.count("\n") == 3  # header + both sets
+        nucleus = (site / "nucleus" / "6He.html").read_text(encoding="utf-8")
+        assert 'data-selection-tab="all_models"' in nucleus
+        assert 'data-selection-tab="23_loss_straight_ns"' in nucleus
+        assert 'data-selection-tab="all_models"' in nucleus.split("23_loss")[0]
+
     def test_nmax_windows_section_groups_training_ranges(self, tmp_path):
         pytest.importorskip("jinja2")
         from results_library.views.site import build_site
