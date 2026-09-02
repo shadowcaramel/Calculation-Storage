@@ -740,7 +740,10 @@ table.detail th .katex { font-size: 1.15em; }
 .plots {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-4);
+  justify-content: center;
+  /* Two 560px tiles plus this gutter match --width at default zoom. */
+  column-gap: 80px;
+  row-gap: var(--sp-4);
   margin-bottom: var(--sp-5);
 }
 .plots h2 { flex: 1 1 100%; }

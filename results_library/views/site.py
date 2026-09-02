@@ -1169,6 +1169,7 @@ _PLOT_CAPTIONS = {
     "legacy_histogram": "Legacy histogram",
     "energy_minima_vs_nmax": "Energy minima vs Nmax",
     "predictions_at_nmax300": "Predictions at Nmax = 300",
+    "ensemble_validation_loss": "Ensemble validation loss",
 }
 
 

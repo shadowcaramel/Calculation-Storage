@@ -729,8 +729,14 @@ class TestSite:
                 "histogram_plot": "histogram.png",
                 "ensemble_curves_plot": "ensemble_curves.png",
                 "selected_data_plot": "selected_data_Erel.jpg",
+                "ensemble_validation_loss_plot": "ensemble_validation_loss.jpg",
             },
-            available=["histogram", "ensemble_curves", "selected_data"],
+            available=[
+                "histogram",
+                "ensemble_curves",
+                "selected_data",
+                "ensemble_validation_loss",
+            ],
         )
         _place(
             library,
@@ -739,6 +745,7 @@ class TestSite:
                 "histogram.png": _PLOT,
                 "ensemble_curves.png": _PLOT,
                 "selected_data_Erel.jpg": _PLOT,
+                "ensemble_validation_loss.jpg": _PLOT,
             },
         )
         frame, _ = build_catalog(library)
@@ -749,11 +756,14 @@ class TestSite:
         selected = page.find("Selected data")
         histogram = page.find("Histogram")
         ensemble = page.find("Ensemble curves")
+        loss = page.find("Ensemble validation loss")
         assert selected != -1
         assert histogram != -1
         assert ensemble != -1
-        assert selected < histogram < ensemble
+        assert loss != -1
+        assert selected < histogram < ensemble < loss
         assert "selected_data_Erel.jpg" in page
+        assert "ensemble_validation_loss.jpg" in page
 
     def test_detail_page_reports_minimum_filter_from_snapshot(self, tmp_path):
         pytest.importorskip("jinja2")
