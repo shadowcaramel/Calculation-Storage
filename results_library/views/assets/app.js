@@ -38,8 +38,32 @@
         // Private browsing or a file:// origin with storage disabled. The
         // choice still applies to this page, it just will not persist.
       }
+      document.querySelectorAll('meta[name="theme-color"]').forEach(function (meta) {
+        meta.setAttribute("content", next === "dark" ? "#0b0d10" : "#fcfcfd");
+      });
     });
   }
+
+  // Field-help tips: delay the first open, then skip delay + motion while the
+  // pointer is still among neighbouring “?” marks (toolbar-style tooltips).
+  var helpHot = false;
+  var helpLeaveTimer = null;
+  document.querySelectorAll(".help").forEach(function (help) {
+    help.addEventListener("pointerenter", function () {
+      if (helpLeaveTimer) {
+        clearTimeout(helpLeaveTimer);
+        helpLeaveTimer = null;
+      }
+      if (helpHot) help.classList.add("is-instant");
+      helpHot = true;
+    });
+    help.addEventListener("pointerleave", function () {
+      help.classList.remove("is-instant");
+      helpLeaveTimer = setTimeout(function () {
+        helpHot = false;
+      }, 120);
+    });
+  });
 
   // ---- math ------------------------------------------------------------
 
