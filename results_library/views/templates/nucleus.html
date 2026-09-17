@@ -10,7 +10,7 @@
 <h1>{{ nucleus_label }}</h1>
 
 <section class="controls">
-  <input type="search" id="filter-text" placeholder="Filter states, observables, notes..." autocomplete="off">
+  <input type="search" id="filter-text" placeholder="Filter states, observables, notes..." autocomplete="off" enterkeyhint="search">
   <label title="Exploratory runs are kept but hidden once anything has been promoted">
     <input type="checkbox" id="hide-probing"{% if hide_probing %} checked{% endif %}> hide probing
   </label>

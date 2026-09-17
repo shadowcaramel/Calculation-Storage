@@ -873,6 +873,26 @@ class TestSite:
         assert 'data-tex="2.639^{+0.002}_{-0.002}"' in page
         assert 'data-tex="\\hbar\\Omega\\ \\text{aggregation}"' in page
 
+    def test_site_ships_motion_tokens_and_mobile_baseline(self, library):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        frame, _ = build_catalog(library)
+        site = build_site(library, frame)
+        index = (site / "index.html").read_text(encoding="utf-8")
+        assert "viewport-fit=cover" in index
+        assert 'name="theme-color"' in index
+        assert 'name="color-scheme"' in index
+        assert 'enterkeyhint="search"' in index
+        css = (site / "assets" / "style.css").read_text(encoding="utf-8")
+        assert "--ease-out: cubic-bezier(0.23, 1, 0.32, 1)" in css
+        assert "(hover: hover) and (pointer: fine)" in css
+        assert "-webkit-tap-highlight-color: transparent" in css
+        assert "scale(0.97)" in css
+        js = (site / "assets" / "app.js").read_text(encoding="utf-8")
+        assert "is-instant" in js
+        assert 'meta[name="theme-color"]' in js
+
     def test_empty_catalog_still_renders_index(self, tmp_path):
         pytest.importorskip("jinja2")
         from results_library.views.site import build_site

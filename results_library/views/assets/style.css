@@ -68,6 +68,15 @@
      would otherwise look like a second typeface. */
   --font: "InterVariable", -apple-system, BlinkMacSystemFont, "Segoe UI",
     Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Motion: strong custom curves. Built-in CSS easings lack punch. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-press: 140ms;
+  --duration-color: 150ms;
+  --duration-tooltip: 160ms;
+  --duration-theme: 200ms;
 }
 
 /* Dark tokens, applied by system preference unless light is pinned, and by an
@@ -127,11 +136,14 @@
 html {
   -webkit-text-size-adjust: 100%;
   color-scheme: light dark;
+  -webkit-tap-highlight-color: transparent;
 }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 body {
   margin: 0;
-  padding: 0 var(--sp-5) var(--sp-7);
+  padding: 0 var(--sp-5) calc(var(--sp-7) + env(safe-area-inset-bottom, 0px));
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font);
@@ -140,6 +152,7 @@ body {
   font-feature-settings: "cv05" 1, "ss03" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--duration-theme) ease, color var(--duration-theme) ease;
 }
 
 ::selection { background: var(--accent-soft); }
@@ -152,8 +165,54 @@ body {
 
 a { color: var(--accent); }
 
+/* Controls are not copyable text; page content stays selectable. */
+button, a.button, .chip, .tab, .theme-toggle, .lineage-option, .help-mark {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@media (pointer: coarse) {
+  input, textarea, select { font-size: 16px; }
+}
+
+/* Reduced motion is gentler, not zero: keep color/opacity, drop movement. */
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+  body {
+    transition: none;
+  }
+  .theme-toggle,
+  .chip,
+  .tab,
+  button.copy,
+  a.button,
+  a.lineage-option,
+  .help-mark,
+  .help-bubble,
+  .controls input[type="search"] {
+    transition-property: color, background-color, background, border-color, box-shadow, opacity, filter;
+  }
+  .theme-toggle:active,
+  .chip:active,
+  .tab:active,
+  button.copy:active,
+  a.button:active,
+  a.lineage-option:active,
+  .help-mark:active {
+    transform: none;
+  }
+  .help-bubble {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  header {
+    background: var(--bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 /* --- header ----------------------------------------------------------- */
@@ -163,10 +222,25 @@ header {
   top: 0;
   z-index: 10;
   margin: 0 calc(-1 * var(--sp-5));
-  padding: var(--sp-3) var(--sp-5);
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: saturate(1.4) blur(10px);
-  border-bottom: 1px solid var(--line);
+  padding: max(var(--sp-3), env(safe-area-inset-top, 0px)) var(--sp-5) var(--sp-3);
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+  backdrop-filter: saturate(1.8) blur(20px);
+  -webkit-backdrop-filter: saturate(1.8) blur(20px);
+}
+/* Scroll-edge fade instead of a hard 1px divider under sticky chrome. */
+header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -16px;
+  height: 16px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg) 55%, transparent),
+    transparent
+  );
 }
 
 .bar {
@@ -185,7 +259,6 @@ header {
   letter-spacing: -0.005em;
 }
 .crumbs a { color: var(--ink-2); text-decoration: none; }
-.crumbs a:hover { color: var(--accent); }
 .crumbs .sep { margin: 0 var(--sp-2); opacity: 0.4; }
 
 .lineage-toggle {
@@ -210,7 +283,10 @@ header {
 .lineage-option + .lineage-option {
   border-left: 1px solid var(--line);
 }
-a.lineage-option:hover { color: var(--accent); }
+a.lineage-option {
+  transition: color var(--duration-color) ease, transform var(--duration-press) var(--ease-out), background var(--duration-color) ease;
+}
+a.lineage-option:active { transform: scale(0.97); }
 .lineage-option.is-active {
   background: var(--accent-soft);
   color: var(--ink);
@@ -232,13 +308,9 @@ a.lineage-option:hover { color: var(--accent); }
   font: inherit;
   font-size: var(--fs-sm);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, transform 0.15s;
+  transition: color var(--duration-color) ease, border-color var(--duration-color) ease, transform var(--duration-press) var(--ease-out);
 }
-.theme-toggle:hover {
-  color: var(--accent);
-  border-color: var(--line-strong);
-  transform: translateY(-1px);
-}
+.theme-toggle:active { transform: scale(0.97); }
 
 /* The label names the theme the button switches *to*, resolved in CSS so it is
    correct on first paint whether the choice came from the system or storage. */
@@ -297,7 +369,7 @@ h2 {
   border-radius: var(--r-sm);
   font: inherit;
   font-size: var(--fs-sm);
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--duration-color) ease, border-color var(--duration-color) ease;
 }
 .controls input[type="search"]::placeholder { color: var(--muted); }
 .controls input[type="search"]:focus {
@@ -355,13 +427,9 @@ h2 {
   text-decoration: none;
   font-size: var(--fs-sm);
   font-weight: 500;
-  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  transition: border-color var(--duration-color) ease, box-shadow var(--duration-color) ease, transform var(--duration-press) var(--ease-out);
 }
-.chip:hover {
-  border-color: var(--accent);
-  box-shadow: var(--shadow);
-  transform: translateY(-1px);
-}
+.chip:active { transform: scale(0.97); }
 .chip-count {
   background: var(--accent-soft);
   color: var(--accent-ink);
@@ -393,12 +461,10 @@ h2 {
   font-size: var(--fs-sm);
   text-decoration: none;
   cursor: pointer;
+  transition: border-color var(--duration-color) ease, color var(--duration-color) ease, background var(--duration-color) ease, transform var(--duration-press) var(--ease-out);
 }
 
-.tab:hover {
-  border-color: var(--accent);
-  color: var(--accent-ink);
-}
+.tab:active { transform: scale(0.97); }
 
 .tab.is-active {
   background: var(--accent-soft);
@@ -469,13 +535,9 @@ button.copy, a.button {
   box-shadow: var(--shadow-sm);
   cursor: pointer;
   text-decoration: none;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: color var(--duration-color) ease, border-color var(--duration-color) ease, background var(--duration-color) ease, transform var(--duration-press) var(--ease-out);
 }
-button.copy:hover, a.button:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-}
+button.copy:active, a.button:active { transform: scale(0.97); }
 button.copy.copied {
   border-color: var(--published);
   color: var(--published);
@@ -519,14 +581,12 @@ thead th {
 /* Numeric headers sit over right-aligned figures, so they have to match. */
 thead th[data-sort="number"] { text-align: right; }
 
-thead th[data-sort] { cursor: pointer; user-select: none; transition: color 0.15s; }
-thead th[data-sort]:hover { color: var(--accent); }
+thead th[data-sort] { cursor: pointer; user-select: none; transition: color var(--duration-color) ease; }
 thead th.sorted-asc, thead th.sorted-desc { color: var(--accent); }
 thead th.sorted-asc::after { content: " \2191"; }
 thead th.sorted-desc::after { content: " \2193"; }
 
-tbody tr { transition: background 0.12s; }
-tbody tr:hover { background: var(--surface-2); }
+tbody tr { transition: background var(--duration-color) ease; }
 tbody tr:last-child td { border-bottom: none; }
 
 /* Curation state as a quiet rail on the row, so a promoted result is findable
@@ -621,8 +681,9 @@ table.detail th .katex { font-size: 1.15em; }
   font-weight: 650;
   line-height: 1;
   cursor: help;
+  transition: color var(--duration-color) ease, border-color var(--duration-color) ease, background var(--duration-color) ease, transform var(--duration-press) var(--ease-out);
 }
-.help-mark:hover,
+.help-mark:active { transform: scale(0.97); }
 .help:focus-within .help-mark {
   color: var(--accent-ink);
   border-color: var(--accent);
@@ -631,10 +692,10 @@ table.detail th .katex { font-size: 1.15em; }
 .help-bubble {
   position: absolute;
   top: calc(100% + 0.45rem);
-  left: 50%;
+  left: 0;
   z-index: 30;
   width: max-content;
-  max-width: min(22rem, 70vw);
+  max-width: min(22rem, calc(100vw - 2rem));
   padding: var(--sp-2) var(--sp-3);
   background: var(--ink);
   color: var(--bg);
@@ -650,23 +711,29 @@ table.detail th .katex { font-size: 1.15em; }
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
-  transform: translateX(-50%) translateY(-2px);
-  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+  transform-origin: 0.7rem top;
+  transform: scale(0.97);
+  transition: opacity var(--duration-tooltip) var(--ease-out), transform var(--duration-tooltip) var(--ease-out), visibility var(--duration-tooltip);
+  transition-delay: 0ms;
 }
 .help-bubble::before {
   content: "";
   position: absolute;
   bottom: 100%;
-  left: 50%;
+  left: 0.7rem;
   margin-left: -5px;
   border: 5px solid transparent;
   border-bottom-color: var(--ink);
 }
-.help:hover .help-bubble,
 .help:focus-within .help-bubble {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(0);
+  transform: scale(1);
+  transition-delay: 140ms;
+}
+.help.is-instant .help-bubble {
+  transition-duration: 0ms;
+  transition-delay: 0ms;
 }
 
 /* --- status ----------------------------------------------------------- */
@@ -756,9 +823,7 @@ table.detail th .katex { font-size: 1.15em; }
   box-shadow: var(--shadow);
   padding: var(--sp-3);
   max-width: 560px;
-  transition: box-shadow 0.18s, transform 0.18s;
 }
-.plots figure:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
 .plots img {
   max-width: 100%;
   height: auto;
@@ -790,6 +855,7 @@ footer {
   max-width: var(--width);
   margin: var(--sp-7) auto 0;
   padding-top: var(--sp-4);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: var(--fs-xs);
@@ -807,9 +873,49 @@ code {
 /* --- narrow screens --------------------------------------------------- */
 
 @media (max-width: 640px) {
-  body { padding: 0 var(--sp-3) var(--sp-6); }
-  header { margin: 0 calc(-1 * var(--sp-3)); padding: var(--sp-3); }
+  body { padding: 0 var(--sp-3) calc(var(--sp-6) + env(safe-area-inset-bottom, 0px)); }
+  header { margin: 0 calc(-1 * var(--sp-3)); padding: max(var(--sp-3), env(safe-area-inset-top, 0px)) var(--sp-3) var(--sp-3); }
   h1 { font-size: var(--fs-lg); }
   .table-block { padding: var(--sp-3); }
   thead th { top: 0; }
+}
+
+/* Hover only when the pointer can hover. Touch fakes :hover and leaves it stuck. */
+@media (hover: hover) and (pointer: fine) {
+  .crumbs a:hover { color: var(--accent); }
+  a.lineage-option:hover { color: var(--accent); }
+  .theme-toggle:hover {
+    color: var(--accent);
+    border-color: var(--line-strong);
+  }
+  .chip:hover {
+    border-color: var(--accent);
+    box-shadow: var(--shadow);
+  }
+  .tab:hover {
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  button.copy:hover, a.button:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+  thead th[data-sort]:hover { color: var(--accent); }
+  tbody tr:hover { background: var(--surface-2); }
+  .help-mark:hover {
+    color: var(--accent-ink);
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .help:hover .help-bubble {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+    transition-delay: 140ms;
+  }
+  .help.is-instant:hover .help-bubble {
+    transition-duration: 0ms;
+    transition-delay: 0ms;
+  }
 }

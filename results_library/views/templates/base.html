@@ -2,10 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fcfcfd">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0d10">
 <title>{% block title %}{% if lineage == 'legacy' %}Legacy calculation results{% else %}Calculation results{% endif %}{% endblock %}</title>
 {# Pin the stored theme before first paint, otherwise a dark-mode reader sees a
-   white flash on every page load. #}
+   white flash on every page load. Match the status-bar color in the same tick. #}
 <script>
 (function () {
   try {
@@ -13,6 +16,15 @@
     if (saved === "dark" || saved === "light") {
       document.documentElement.setAttribute("data-theme", saved);
     }
+    var dark = saved === "dark" || (
+      saved !== "light"
+      && window.matchMedia
+      && window.matchMedia("(prefers-color-scheme: dark)").matches
+    );
+    var color = dark ? "#0b0d10" : "#fcfcfd";
+    document.querySelectorAll('meta[name="theme-color"]').forEach(function (meta) {
+      meta.setAttribute("content", color);
+    });
   } catch (err) {}
 })();
 </script>
