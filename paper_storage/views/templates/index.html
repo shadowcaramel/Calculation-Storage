@@ -22,8 +22,8 @@
         {% if paper.year_label %}<span class="paper-year">{{ paper.year_label }}</span>{% endif %}
         <a href="{{ paper.href }}">{{ paper.title }}</a>
       </h2>
-      {% if paper.nuclei or paper.potentials %}
-      <p class="hint">{{ paper.nuclei }}{% if paper.nuclei and paper.potentials %} · {% endif %}{{ paper.potentials }}</p>
+      {% if paper.journal or paper.nuclei or paper.potentials %}
+      <p class="hint">{{ paper.journal }}{% if paper.journal and (paper.nuclei or paper.potentials) %} · {% endif %}{{ paper.nuclei }}{% if paper.nuclei and paper.potentials %} · {% endif %}{{ paper.potentials }}</p>
       {% endif %}
     </div>
     <a class="row-open" href="{{ paper.href }}" aria-label="Open paper">{{ icon("chevron-right") }}</a>
@@ -32,11 +32,11 @@
   <div data-grid>
     <div class="table-head">
       <h3>{{ grid.title }}</h3>
-      <button type="button" class="hide-grid" aria-expanded="true">
-        {{ icon("chevron-down") }} <span class="hide-grid-label">Hide</span>
+      <button type="button" class="hide-grid" aria-expanded="false">
+        {{ icon("chevron-down") }} <span class="hide-grid-label">Show</span>
       </button>
     </div>
-    <div class="paper-grid-body">
+    <div class="paper-grid-body" hidden>
       {% if grid.caption %}<p>{{ grid.caption }}</p>{% endif %}
       {{ grid_table(grid) }}
     </div>

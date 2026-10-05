@@ -126,6 +126,8 @@ def test_bib_doi_mismatch_is_reported(tmp_path):
     joined = "\n".join(str(issue) for issue in result.issues)
     assert "[error]" in joined
     assert "10.9999/wrong" in joined
+    index = (result.site / "index.html").read_text(encoding="utf-8")
+    assert "Moscow University Physics Bulletin" in index
 
 
 def test_parsed_grid_is_shown_beside_the_screenshot(tmp_path):
@@ -137,6 +139,7 @@ def test_parsed_grid_is_shown_beside_the_screenshot(tmp_path):
     assert 'class="results parsed-grid"' in page
     assert "-32.034(4)" in page
     assert "table1.png" in page
+    assert 'class="latex-spoiler"' in page
     assert f"../site/results/{RESULT_ID.replace('/', '__')}.html" in page
 
 

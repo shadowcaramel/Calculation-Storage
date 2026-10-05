@@ -513,6 +513,25 @@ tr[data-href]:hover td { background: var(--accent-soft); }
 }
 .paper-block [data-grid],
 .paper-block figure { margin-top: var(--sp-4); }
+.paper-block [data-grid] { text-align: center; }
+.paper-block [data-grid] .table-head { justify-content: center; }
+.parsed-grid th,
+.parsed-grid td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.latex-spoiler {
+  margin-top: var(--sp-4);
+  text-align: left;
+}
+.latex-spoiler summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.latex-spoiler .actions { margin-top: var(--sp-3); }
 .paper-block img,
 .table-block figure img {
   max-width: 100%;

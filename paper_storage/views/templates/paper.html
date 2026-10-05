@@ -25,11 +25,6 @@
 <section class="table-block">
   <div class="table-head">
     <h2>{{ material.title }}</h2>
-    {% if material.latex_text %}
-    <div class="actions">
-      <button type="button" class="copy" data-target="{{ material.latex_dom_id }}">{{ icon("copy") }} Copy</button>
-    </div>
-    {% endif %}
   </div>
   {% if material.caption %}<p>{{ material.caption }}</p>{% endif %}
   {% if material.image_href %}
@@ -44,8 +39,14 @@
   {{ grid_table(material) }}
   {% endif %}
   {% if material.latex_text %}
-  <textarea id="{{ material.latex_dom_id }}" class="export-source" readonly>{{ material.latex_text }}</textarea>
-  <pre class="source">{{ material.latex_text }}</pre>
+  <details class="latex-spoiler">
+    <summary>LaTeX source</summary>
+    <div class="actions">
+      <button type="button" class="copy" data-target="{{ material.latex_dom_id }}">{{ icon("copy") }} Copy</button>
+    </div>
+    <textarea id="{{ material.latex_dom_id }}" class="export-source" readonly>{{ material.latex_text }}</textarea>
+    <pre class="source">{{ material.latex_text }}</pre>
+  </details>
   {% endif %}
   {% for check in material.checks %}
   <p class="hint">
