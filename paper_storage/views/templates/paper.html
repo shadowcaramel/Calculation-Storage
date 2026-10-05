@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
+{% from "_grid.html" import grid_table %}
 {% block title %}{{ paper.title }}{% endblock %}
 {% block crumbs %}
   <span class="sep">/</span><span>{{ paper.title }}</span>
@@ -34,36 +35,13 @@
   {% if material.image_href %}
   <figure>
     <a href="{{ material.image_href }}"><img src="{{ material.image_href }}" alt="{{ material.title }}"></a>
-    <figcaption>{{ material.image_name }}{% if material.pdf_page_href %} · <a href="{{ material.pdf_page_href }}">page in the PDF</a>{% endif %}</figcaption>
+    <figcaption>{{ material.image_name }}{% if material.file_href %} · <a href="{{ material.file_href }}">PDF</a>{% endif %}{% if material.pdf_page_href %} · <a href="{{ material.pdf_page_href }}">page in the PDF</a>{% endif %}</figcaption>
   </figure>
   {% elif material.file_href %}
-  <p><a href="{{ material.file_href }}">{{ material.image_name }}</a></p>
+  <p><a href="{{ material.file_href }}">{{ material.image_name or "PDF" }}</a></p>
   {% endif %}
   {% if material.rows %}
-  <table class="results parsed-grid">
-    <thead>
-      <tr>
-        {% for column in material.columns %}
-        <th>
-          {% if column.latex %}
-          <span class="tex" data-tex="{{ column.latex }}">{{ column.text }}</span>
-          {% else %}
-          {{ column.text }}
-          {% endif %}
-        </th>
-        {% endfor %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in material.rows %}
-      <tr>
-        {% for cell in row %}
-        <td>{% if cell.href %}<a href="{{ cell.href }}">{{ cell.text }}</a>{% else %}{{ cell.text }}{% endif %}</td>
-        {% endfor %}
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {{ grid_table(material) }}
   {% endif %}
   {% if material.latex_text %}
   <textarea id="{{ material.latex_dom_id }}" class="export-source" readonly>{{ material.latex_text }}</textarea>

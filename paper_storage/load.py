@@ -39,6 +39,7 @@ class Material:
     title: str = ""
     latex: str = ""
     image: str = ""
+    file: str = ""
     pdf_page: Optional[int] = None
     parsed: str = ""
     parsed_explicit: bool = False
@@ -229,6 +230,7 @@ def _material(item: Any) -> Optional[Material]:
         title=str(item.get("title") or "").strip(),
         latex=latex,
         image=str(item.get("image") or "").strip().replace("\\", "/"),
+        file=str(item.get("file") or "").strip().replace("\\", "/"),
         pdf_page=pdf_page,
         parsed=parsed,
         parsed_explicit=explicit,

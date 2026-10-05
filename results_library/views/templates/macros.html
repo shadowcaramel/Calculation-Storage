@@ -107,7 +107,8 @@
       {% for row in rows %}
       <tr data-status="{{ row.status }}" data-search="{{ row.search_text }}"
           data-selection="{{ row.selection_set or '' }}"
-          data-cohort="{{ row.cohort_key }}">
+          data-cohort="{{ row.cohort_key }}"
+          data-href="{{ root }}results/{{ row.page }}">
         <td data-value="{{ row.run_datetime or '' }}">{{ row.run_date_label or "" }}</td>
         <td>{{ row.nucleus_label or row.nucleus }}</td>
         <td data-value="{{ row.state_label or row.state_slug }}">{{ tex(row.state_latex, row.state_label or row.state_slug) }}</td>
@@ -118,7 +119,7 @@
         <td class="num" data-value="{{ row.bounds_Nmax_max if row.bounds_Nmax_max is not none else '' }}">{{ row.nmax_range or "" }}</td>
         <td class="num" data-value="{{ row.bounds_hOmega_max if row.bounds_hOmega_max is not none else '' }}">{{ row.homega_range or "" }}</td>
         <td><span class="status status-{{ row.status }}">{{ row.status }}</span></td>
-        <td><a href="{{ root }}results/{{ row.page }}">details</a></td>
+        <td><a class="row-open" href="{{ root }}results/{{ row.page }}" aria-label="Open">{{ icon("chevron-right") }}</a></td>
       </tr>
       {% endfor %}
     </tbody>

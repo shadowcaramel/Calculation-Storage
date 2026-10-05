@@ -1,0 +1,36 @@
+{% macro math_cell(cell) %}
+{%- if cell.href %}<a href="{{ cell.href }}">{% endif -%}
+{%- if cell.latex -%}
+<span class="tex" data-tex="{{ cell.latex }}">{{ cell.plain }}</span>
+{%- else -%}
+{{ cell.text }}
+{%- endif -%}
+{%- if cell.href %}</a>{% endif -%}
+{% endmacro %}
+
+{% macro grid_table(grid) %}
+<table class="results parsed-grid">
+  <thead>
+    <tr>
+      {% for column in grid.columns %}
+      <th>
+        {% if column.latex %}
+        <span class="tex" data-tex="{{ column.latex }}">{{ column.text }}</span>
+        {% else %}
+        {{ column.text }}
+        {% endif %}
+      </th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in grid.rows %}
+    <tr>
+      {% for cell in row %}
+      <td>{{ math_cell(cell) }}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}

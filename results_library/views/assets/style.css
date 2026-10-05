@@ -482,6 +482,43 @@ h2 {
   margin: 0;
 }
 
+h2 .paper-year {
+  margin-right: 0.4em;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.paper-block h2 { margin-bottom: var(--sp-2); }
+.paper-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  cursor: pointer;
+}
+.paper-head h2 { margin-bottom: 0; }
+tr[data-href] { cursor: pointer; }
+tr[data-href]:hover td { background: var(--accent-soft); }
+.row-open {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  text-decoration: none;
+}
+.row-open .icon { width: 1.15rem; height: 1.15rem; }
+.paper-block h3 {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: 600;
+}
+.paper-block [data-grid],
+.paper-block figure { margin-top: var(--sp-4); }
+.paper-block img,
+.table-block figure img {
+  max-width: 100%;
+  height: auto;
+}
+
 /* --- controls --------------------------------------------------------- */
 
 .controls {

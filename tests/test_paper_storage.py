@@ -216,6 +216,26 @@ def test_catalogue_lists_nuclei_potentials_and_a_grid(tmp_path):
     assert "hide-grid" in page
     assert 'class="mode-switch storage-toggle"' in page
     assert "Modern" not in page
+    assert "paper-block" in page
+    assert "<th" not in page.split("paper-block", 1)[0]
+
+
+def test_asymmetric_uncertainty_is_typeset(tmp_path):
+    library = _library(tmp_path, "math")
+    _papers(library, parsed=True)
+    parsed = {
+        "columns": [{"id": "value", "text": "Value"}],
+        "rows": [{"cells": [{"text": "-29.429^{+0.007}_{-0.005}", "value": -29.429}]}],
+    }
+    (library / "papers" / "example" / "table1.parsed.json").write_text(
+        json.dumps(parsed), encoding="utf-8"
+    )
+    result = build_papers(library)
+    page = (result.site / "example.html").read_text(encoding="utf-8")
+    assert "data-tex" in page
+    assert "^{+0.007}" in page
+    assert "⁺" in page
+    assert "₀" in page
 
 
 def test_bibliography_braces_and_doi_prefix():

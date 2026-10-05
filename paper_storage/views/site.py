@@ -115,6 +115,10 @@ def _card(
         "nuclei": ", ".join(_nuclei(paper, grids)),
         "potentials": ", ".join(_potentials(library_root, paper)),
         "grids": [view for view in views if view["rows"]],
+        "figures": [
+            view for view in views
+            if view["kind"] == "plot" and (view["image_href"] or view["file_href"])
+        ],
     }
 
 
@@ -210,7 +214,9 @@ def _material_view(
     linked = _library_href(material.image) if material.image else ""
     is_image = suffix in _IMAGE_SUFFIXES
     image_href = linked if is_image else ""
-    file_href = linked if linked and not is_image else ""
+    file_href = _library_href(material.file) if material.file else ""
+    if not file_href and linked and not is_image:
+        file_href = linked
     pdf_page_href = ""
     if material.pdf_page and paper_file_href(paper):
         pdf_page_href = f"{paper_file_href(paper)}#page={material.pdf_page}"
@@ -224,9 +230,12 @@ def _material_view(
         for row_index, cells in enumerate(grid.rows):
             rendered = []
             for column_index_value, cell in enumerate(cells):
+                latex, plain = _cell_math(cell.text)
                 rendered.append(
                     {
                         "text": cell.text,
+                        "plain": plain,
+                        "latex": latex,
                         "href": _cell_href(paper, material, row_index, column_index_value, grid),
                     }
                 )
@@ -326,6 +335,53 @@ def _strip_dollars(latex: str) -> str:
     while len(text) >= 2 and text.startswith("$") and text.endswith("$"):
         text = text[1:-1].strip()
     return text
+
+
+_MATH_MARK = re.compile(r"[\^_\\]")
+_BRACE_SCRIPT = re.compile(r"(\^|_)\{([^{}]*)\}")
+_SINGLE_SCRIPT = re.compile(r"(\^|_)([0-9A-Za-z+\-])")
+_PROSE = re.compile(r"\s*(\([^()]*[A-Za-z][^()]*\))")
+_SUPER = {
+    "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴",
+    "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹",
+    "+": "⁺", "-": "⁻", ".": "·",
+}
+_SUB = {
+    "0": "₀", "1": "₁", "2": "₂", "3": "₃", "4": "₄",
+    "5": "₅", "6": "₆", "7": "₇", "8": "₈", "9": "₉",
+    "+": "₊", "-": "₋", ".": "·",
+    "a": "ₐ", "e": "ₑ", "h": "ₕ", "i": "ᵢ", "j": "ⱼ", "k": "ₖ",
+    "l": "ₗ", "m": "ₘ", "n": "ₙ", "o": "ₒ", "p": "ₚ", "r": "ᵣ",
+    "s": "ₛ", "t": "ₜ", "u": "ᵤ", "v": "ᵥ", "x": "ₓ",
+}
+
+
+def _cell_math(text: str) -> tuple[str, str]:
+    """KaTeX source and a Unicode fallback, or empty source when the cell is plain."""
+    raw = str(text or "")
+    if not raw or _MATH_MARK.search(raw) is None:
+        return "", raw
+    return _katex_source(raw), _unicode_math(raw)
+
+
+def _katex_source(text: str) -> str:
+    """Keep exponents as math and set prose in parentheses as text."""
+
+    def repl(match: re.Match[str]) -> str:
+        return r"\ \text{" + match.group(1) + "}"
+
+    return _PROSE.sub(repl, text)
+
+
+def _unicode_math(text: str) -> str:
+    """Turn ``^{+0.007}`` and ``r_p`` into characters a page can show without KaTeX."""
+
+    def script(match: re.Match[str]) -> str:
+        table = _SUPER if match.group(1) == "^" else _SUB
+        return "".join(table.get(character, character) for character in match.group(2))
+
+    rendered = _BRACE_SCRIPT.sub(script, text)
+    return _SINGLE_SCRIPT.sub(script, rendered)
 
 
 def _copy_assets(site: Path) -> None:
