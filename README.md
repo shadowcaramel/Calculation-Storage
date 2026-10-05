@@ -230,6 +230,62 @@ Rebuild the site. A Comparisons page is linked from the index; nucleus and
 result pages list the figures that mention them. The pipeline never writes this
 file.
 
+## Changes
+
+`changelog.json` at the library root is a short history of what was added. The
+site build never writes it. Each entry is a sentence, for example "Legacy 2H
+extrapolations are added." The catalogue header shows a **Changes** button when
+the file has entries. Opening it marks them seen in this browser.
+
+```json
+{
+  "changes": [
+    {
+      "id": "2026-10-05-legacy-2h",
+      "date": "2026-10-05",
+      "message": "Legacy 2H extrapolations are added.",
+      "nucleus": "2H",
+      "lineage": "legacy"
+    }
+  ]
+}
+```
+
+Optional `nucleus`, `lineage`, `paper`, and `results` become links. A `paper`
+link appears only after a build with `--with-papers`.
+
+## Paper storage
+
+Published articles are a separate reader, `paper_storage`. A plain calculation
+build does not import it and does not link a paper site left over from an
+earlier run.
+
+```bash
+python -m paper_storage build --library "G:/Shared drives/Calculation results/Calculation storage" --bibliography "G:/My Drive/!ML/2026 rework/bibliography/my_publications.bib"
+python -m results_library.cli build --with-papers --library "G:/Shared drives/Calculation results/Calculation storage" --bibliography "G:/My Drive/!ML/2026 rework/bibliography/my_publications.bib"
+```
+
+`PAPER_BIBLIOGRAPHY` is accepted instead of `--bibliography`. Without a bib
+file the paper site still builds. `--with-papers` stops before the calculation
+site if `papers.json` is missing or the paper build fails.
+
+`papers.json` is hand-edited. Bibliographic fields come from the matching key
+in `my_publications.bib`. The JSON records the PDF, screenshots, a `.tex`
+fragment, and optional links from a printed number to a bundle id. A project
+skill, `.cursor/skills/parse-paper-table/`, reads an irregular table once and
+writes `table1.parsed.json` beside the `.tex` file. The paper page shows that
+grid next to the screenshot. The build does not parse LaTeX.
+
+A link's `compare` is `direct` when the printed central value is the stored
+result, or `derived` when the paper adjusted it first (for example an
+extrapolated energy minus a threshold). A direct mismatch past the last printed
+digit is a warning. A derived link is not required to match; it needs a `note`.
+Neither warning stops the build.
+
+On a `--with-papers` build the calculation header gains **Calculations | Papers**,
+and a result page lists **Published in**. The paper pages link back to the
+calculation catalogue.
+
 ## Typeset formulas
 
 States, observables, values, and the axis names are typeset in the browser by

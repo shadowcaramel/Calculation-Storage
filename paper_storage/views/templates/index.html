@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Papers{% endblock %}
+{% block content %}
+<div class="mode-stack">
+  <nav class="mode-switch storage-toggle" aria-label="Library">
+    {% if calculations_href %}
+    <a href="{{ calculations_href }}">Calculations</a>
+    {% else %}
+    <span>Calculations</span>
+    {% endif %}
+    <span class="is-active" aria-current="page">Papers</span>
+  </nav>
+</div>
+{% if papers %}
+<table class="results" data-filterable="true">
+  <thead>
+    <tr>
+      <th data-sort="text" class="sorted-desc">Year</th>
+      <th data-sort="text">Title</th>
+      <th data-sort="text">Nuclei</th>
+      <th data-sort="text">Potentials</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for paper in papers %}
+    <tr data-search="{{ paper.title }} {{ paper.nuclei }} {{ paper.potentials }} {{ paper.year_label }}">
+      <td data-value="{{ paper.year_sort }}">{{ paper.year_label }}</td>
+      <td><a href="{{ paper.href }}">{{ paper.title }}</a></td>
+      <td>{{ paper.nuclei }}</td>
+      <td>{{ paper.potentials }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% for paper in papers %}
+  {% for grid in paper.grids %}
+  <section class="table-block" data-grid>
+    <div class="table-head">
+      <h2><a href="{{ paper.href }}">{{ paper.title }}</a> — {{ grid.title }}</h2>
+      <button type="button" class="hide-grid" aria-expanded="true">
+        {{ icon("chevron-down") }} <span class="hide-grid-label">Hide</span>
+      </button>
+    </div>
+    <div class="paper-grid-body">
+      {% if grid.caption %}<p>{{ grid.caption }}</p>{% endif %}
+      <table class="results parsed-grid">
+        <thead>
+          <tr>
+            {% for column in grid.columns %}
+            <th>
+              {% if column.latex %}
+              <span class="tex" data-tex="{{ column.latex }}">{{ column.text }}</span>
+              {% else %}
+              {{ column.text }}
+              {% endif %}
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in grid.rows %}
+          <tr>
+            {% for cell in row %}
+            <td>{% if cell.href %}<a href="{{ cell.href }}">{{ cell.text }}</a>{% else %}{{ cell.text }}{% endif %}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endfor %}
+{% endfor %}
+{% else %}
+<p class="empty">No papers are listed in papers.json.</p>
+{% endif %}
+{% endblock %}

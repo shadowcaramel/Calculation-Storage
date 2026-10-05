@@ -28,6 +28,39 @@
     return systemPrefersDark() ? "dark" : "light";
   }
 
+  // ---- changes ---------------------------------------------------------
+
+  var CHANGES_KEY = "results-changes-seen";
+  var changesButton = document.getElementById("changes-toggle");
+  var changesPanel = document.getElementById("changes-panel");
+
+  if (changesButton && changesPanel) {
+    var newestChange = changesButton.getAttribute("data-newest") || "";
+    var seenChange = "";
+    try {
+      seenChange = localStorage.getItem(CHANGES_KEY) || "";
+    } catch (err) {
+      seenChange = "";
+    }
+    var changesDot = changesButton.querySelector(".changes-dot");
+    if (changesDot && newestChange && seenChange !== newestChange) {
+      changesDot.hidden = false;
+    }
+    changesButton.addEventListener("click", function () {
+      var open = changesPanel.hidden;
+      changesPanel.hidden = !open;
+      changesButton.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open && newestChange) {
+        try {
+          localStorage.setItem(CHANGES_KEY, newestChange);
+        } catch (err) {
+          // The panel still opens; the dot returns on the next visit.
+        }
+        if (changesDot) changesDot.hidden = true;
+      }
+    });
+  }
+
   if (themeButton) {
     themeButton.addEventListener("click", function () {
       var next = activeTheme() === "dark" ? "light" : "dark";
@@ -228,6 +261,21 @@
       rows.forEach(function (row) {
         body.appendChild(row);
       });
+    });
+  });
+
+  // ---- hide a paper grid ------------------------------------------------
+
+  document.querySelectorAll(".hide-grid").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var section = button.closest("[data-grid]");
+      if (!section) return;
+      var body = section.querySelector(".paper-grid-body");
+      var open = button.getAttribute("aria-expanded") === "true";
+      button.setAttribute("aria-expanded", open ? "false" : "true");
+      if (body) body.hidden = open;
+      var label = button.querySelector(".hide-grid-label");
+      if (label) label.textContent = open ? "Show" : "Hide";
     });
   });
 

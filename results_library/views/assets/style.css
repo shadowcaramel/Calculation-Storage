@@ -293,8 +293,146 @@ a.lineage-option:active { transform: scale(0.97); }
   font-weight: 600;
 }
 
-.theme-toggle {
+.mode-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  margin: var(--sp-6) 0 var(--sp-5);
+}
+.mode-switch {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--fs-xl);
+  font-weight: 620;
+  letter-spacing: -0.022em;
+  line-height: 1.2;
+}
+.mode-switch a,
+.mode-switch span {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12em 0.55em;
+  color: var(--muted);
+  text-decoration: none;
+}
+.mode-switch a + a,
+.mode-switch a + span,
+.mode-switch span + a,
+.mode-switch span + span {
+  border-left: 1px solid var(--line);
+}
+.mode-switch .is-active {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+a.mode-switch,
+.mode-switch a {
+  transition: color var(--duration-color) ease, background var(--duration-color) ease;
+}
+
+.icon {
+  width: 1.05em;
+  height: 1.05em;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hide-grid {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: var(--sp-1) var(--sp-3);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.hide-grid .icon { transition: transform var(--duration-color) var(--ease-out); }
+.hide-grid[aria-expanded="false"] .icon { transform: rotate(-90deg); }
+
+.header-actions {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.changes-wrap { position: relative; flex: none; }
+
+.changes-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--surface);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  box-shadow: var(--shadow-sm);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.changes-toggle:active { transform: scale(0.97); }
+
+.changes-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.changes-panel {
+  position: absolute;
+  top: calc(100% + var(--sp-2));
+  right: 0;
+  width: min(22rem, 80vw);
+  max-height: 20rem;
+  overflow: auto;
+  z-index: 20;
+  padding: var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+.changes-panel ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.changes-panel li + li {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+.changes-panel time {
+  display: block;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.changes-panel p { margin: var(--sp-1) 0 0; }
+.changes-links { font-size: var(--fs-sm); }
+.changes-links .sep { margin: 0 var(--sp-1); opacity: 0.4; }
+
+.theme-toggle {
+  margin-left: 0;
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -524,6 +662,9 @@ h2 {
 .actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 
 button.copy, a.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: var(--sp-1) var(--sp-3);
   font: inherit;
   font-size: var(--fs-sm);
@@ -547,6 +688,17 @@ button.copy.copied {
 /* The export strings are present in the page but never shown: copying reads
    from here rather than from the rendered table. */
 .export-source { position: absolute; left: -9999px; width: 1px; height: 1px; }
+
+pre.source {
+  overflow: auto;
+  margin: var(--sp-3) 0;
+  padding: var(--sp-3);
+  background: var(--surface-2);
+  border-radius: var(--r);
+  font-size: var(--fs-xs);
+  line-height: 1.45;
+  white-space: pre;
+}
 
 /* Separate borders rather than collapsed, so the sticky header below paints
    its own background without dropping cell rules. */

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ paper.title }}{% endblock %}
+{% block crumbs %}
+  <span class="sep">/</span><span>{{ paper.title }}</span>
+{% endblock %}
+{% block content %}
+<h1>{{ paper.title }}</h1>
+{% if paper.authors or paper.journal or paper.year %}
+<p class="hint">
+  {{ paper.authors }}
+  {% if paper.journal %} · {{ paper.journal }}{% endif %}
+  {% if paper.year %} · {{ paper.year }}{% endif %}
+  {% if paper.volume %}, vol. {{ paper.volume }}{% endif %}
+  {% if paper.pages %}, pp. {{ paper.pages }}{% endif %}
+</p>
+{% endif %}
+<p>
+  {% if paper.doi_href %}<a href="{{ paper.doi_href }}">{{ paper.doi }}</a>{% endif %}
+  {% if paper.pdf_href %} · <a href="{{ paper.pdf_href }}">PDF</a>{% endif %}
+</p>
+
+{% for material in paper.materials %}
+<section class="table-block">
+  <div class="table-head">
+    <h2>{{ material.title }}</h2>
+    {% if material.latex_text %}
+    <div class="actions">
+      <button type="button" class="copy" data-target="{{ material.latex_dom_id }}">{{ icon("copy") }} Copy</button>
+    </div>
+    {% endif %}
+  </div>
+  {% if material.caption %}<p>{{ material.caption }}</p>{% endif %}
+  {% if material.image_href %}
+  <figure>
+    <a href="{{ material.image_href }}"><img src="{{ material.image_href }}" alt="{{ material.title }}"></a>
+    <figcaption>{{ material.image_name }}{% if material.pdf_page_href %} · <a href="{{ material.pdf_page_href }}">page in the PDF</a>{% endif %}</figcaption>
+  </figure>
+  {% elif material.file_href %}
+  <p><a href="{{ material.file_href }}">{{ material.image_name }}</a></p>
+  {% endif %}
+  {% if material.rows %}
+  <table class="results parsed-grid">
+    <thead>
+      <tr>
+        {% for column in material.columns %}
+        <th>
+          {% if column.latex %}
+          <span class="tex" data-tex="{{ column.latex }}">{{ column.text }}</span>
+          {% else %}
+          {{ column.text }}
+          {% endif %}
+        </th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in material.rows %}
+      <tr>
+        {% for cell in row %}
+        <td>{% if cell.href %}<a href="{{ cell.href }}">{{ cell.text }}</a>{% else %}{{ cell.text }}{% endif %}</td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% if material.latex_text %}
+  <textarea id="{{ material.latex_dom_id }}" class="export-source" readonly>{{ material.latex_text }}</textarea>
+  <pre class="source">{{ material.latex_text }}</pre>
+  {% endif %}
+  {% for check in material.checks %}
+  <p class="hint">
+    <a href="{{ check.href }}">{{ check.label }}</a>
+    {% if check.compare == "derived" %}
+      — derived{% if check.note %}: {{ check.note }}{% endif %}.
+      {% if check.printed %}Paper {{ check.printed }}{% endif %}
+      {% if check.stored %}, stored {{ check.stored }}{% endif %}.
+    {% elif check.compare == "direct" %}
+      — direct.
+      {% if check.printed %}Paper {{ check.printed }}{% endif %}
+      {% if check.stored %}, stored {{ check.stored }}{% endif %}.
+    {% else %}
+      {% if check.stored %}Stored {{ check.stored }}.{% endif %}
+    {% endif %}
+  </p>
+  {% endfor %}
+</section>
+{% endfor %}
+{% endblock %}

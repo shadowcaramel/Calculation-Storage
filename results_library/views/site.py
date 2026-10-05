@@ -23,6 +23,7 @@ import pandas as pd
 
 from results_library.annotations import STATUSES
 from results_library.catalog import LIST_SEPARATOR
+from results_library.changelog import ChangeEntry, load_changelog, newest_first
 from results_library.comparisons import (
     ComparisonFigure,
     figures_for_nucleus,
@@ -178,6 +179,22 @@ def _strip_dollars(value: Any) -> str:
 def _page_name(result_id: str) -> str:
     """Flat filename for a detail page, so link depth is always the same."""
     return result_id.replace("/", "__") + ".html"
+
+
+def _result_page_target(result_id: str) -> str:
+    """Library-root path of a detail page. Matches :func:`_page_name`."""
+    return f"{SITE_DIRNAME}/results/{_page_name(result_id)}"
+
+
+PAPER_SITE_DIRNAME = "paper-site"
+
+
+def _paper_index_target() -> str:
+    return f"{PAPER_SITE_DIRNAME}/index.html"
+
+
+def _paper_page_target(paper_id: str) -> str:
+    return f"{PAPER_SITE_DIRNAME}/{paper_id}.html"
 
 
 def _nucleus_slug(nucleus: str) -> str:
@@ -644,13 +661,33 @@ def _figure_views(
 
 
 class SiteBuilder:
-    """Renders the catalog into a static site under ``<library>/site``."""
+    """Renders the catalog into a static site under ``<library>/site``.
 
-    def __init__(self, library_root: Path, catalog: pd.DataFrame) -> None:
+    ``include_papers`` is set only by ``build --with-papers``. The builder does
+    not look on disk for a leftover paper site, and it does not import
+    ``paper_storage``. ``paper_links`` maps a result id to the papers that
+    name it; each item has ``id``, ``title``, and a library-root ``href``.
+    """
+
+    def __init__(
+        self,
+        library_root: Path,
+        catalog: pd.DataFrame,
+        *,
+        include_papers: bool = False,
+        paper_links: Optional[Mapping[str, List[Mapping[str, Any]]]] = None,
+    ) -> None:
         self.library_root = Path(library_root)
         self.catalog = catalog
         self.site_root = self.library_root / SITE_DIRNAME
         self.generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+        self.include_papers = bool(include_papers)
+        self.paper_links = {
+            str(result_id): list(papers)
+            for result_id, papers in (paper_links or {}).items()
+        }
+        self._changes: List[ChangeEntry] = []
+        self._rows_by_id: Dict[str, Dict[str, Any]] = {}
 
     # -- environment ---------------------------------------------------
 
@@ -705,6 +742,8 @@ class SiteBuilder:
         )
         rows.sort(key=lambda r: str(r.get("run_datetime") or ""), reverse=True)
         rows_by_id = {str(row.get("id") or ""): row for row in rows}
+        self._rows_by_id = rows_by_id
+        self._changes = newest_first(load_changelog(self.library_root))
         lineage_counts = _lineage_counts(rows)
         nuclei_by_lineage = _nuclei_by_lineage(rows)
 
@@ -804,7 +843,68 @@ class SiteBuilder:
             "lineage_modern_href": lineage_modern_href,
             "lineage_legacy_href": lineage_legacy_href,
             "catalog_href": catalog_href or f"{root}{filename}",
+            "papers_href": (
+                _href(page_path, _paper_index_target()) if self.include_papers else None
+            ),
+            "changes": self._change_views(page_path),
         }
+
+    def _change_views(self, page_path: str) -> List[Dict[str, Any]]:
+        """Header entries. A paper link is included only on a papers build."""
+        views: List[Dict[str, Any]] = []
+        for entry in self._changes:
+            links: List[Dict[str, Any]] = []
+            if entry.nucleus:
+                lineage = entry.lineage if entry.lineage in ("modern", "legacy") else "modern"
+                links.append(
+                    {
+                        "label": entry.nucleus,
+                        "href": _href(page_path, _nucleus_path(entry.nucleus, lineage)),
+                    }
+                )
+            if entry.paper and self.include_papers:
+                links.append(
+                    {
+                        "label": entry.paper,
+                        "href": _href(page_path, _paper_page_target(entry.paper)),
+                    }
+                )
+            for result_id in entry.results:
+                links.append(
+                    {
+                        "label": result_id,
+                        "href": _href(page_path, _result_page_target(result_id)),
+                    }
+                )
+            views.append(
+                {
+                    "id": entry.id,
+                    "date": entry.date,
+                    "message": entry.message,
+                    "links": links,
+                }
+            )
+        return views
+
+    def _published_in(
+        self, result_ids: Iterable[str], page_path: str
+    ) -> List[Dict[str, Any]]:
+        """Papers that name any of these results. Empty unless papers were requested."""
+        if not self.include_papers:
+            return []
+        seen: Dict[str, Dict[str, Any]] = {}
+        for result_id in result_ids:
+            for paper in self.paper_links.get(str(result_id), []):
+                paper_id = str(paper.get("id") or "").strip()
+                if not paper_id or paper_id in seen:
+                    continue
+                href = str(paper.get("href") or _paper_page_target(paper_id))
+                seen[paper_id] = {
+                    "id": paper_id,
+                    "title": str(paper.get("title") or paper_id),
+                    "href": _href(page_path, href),
+                }
+        return list(seen.values())
 
     def _index_context(
         self,
@@ -865,6 +965,7 @@ class SiteBuilder:
                 "exports": _exports(table_rows),
                 "export_id": export_id,
                 "comparison_figures": _figure_views(figures, page_path, rows_by_id),
+                "catalogue_page": True,
             }
         )
         return context
@@ -980,6 +1081,10 @@ class SiteBuilder:
                     comparison_figures=_figure_views(
                         figures_for_nucleus(figures, nucleus), page_path, rows_by_id
                     ),
+                    published_in=self._published_in(
+                        (str(row.get("id") or "") for row in nucleus_rows),
+                        page_path,
+                    ),
                     **self._page_chrome(
                         root="../",
                         page_path=page_path,
@@ -1079,6 +1184,10 @@ class SiteBuilder:
                     figures_for_result(figures, str(row.get("id") or "")),
                     page_path,
                     rows_by_id,
+                ),
+                published_in=self._published_in(
+                    [str(row.get("id") or "")],
+                    page_path,
                 ),
                 bundle_href=_href(page_path, str(row.get("bundle_path") or "")),
                 exports=_exports([row]),
@@ -1208,10 +1317,25 @@ def _ordered_plot_stems(row: Mapping[str, Any], stems: Iterable[str]) -> List[st
     return ordered
 
 
-def build_site(library_root: Path, catalog: Optional[pd.DataFrame] = None) -> Path:
-    """Build the static site, loading the catalog when not supplied."""
+def build_site(
+    library_root: Path,
+    catalog: Optional[pd.DataFrame] = None,
+    *,
+    include_papers: bool = False,
+    paper_links: Optional[Mapping[str, List[Mapping[str, Any]]]] = None,
+) -> Path:
+    """Build the static site, loading the catalog when not supplied.
+
+    ``include_papers`` and ``paper_links`` come from ``--with-papers``. A plain
+    build leaves them unset, so a leftover ``paper-site/`` is not linked.
+    """
     if catalog is None:
         from results_library.catalog import load_catalog
 
         catalog = load_catalog(library_root)
-    return SiteBuilder(library_root, catalog).build()
+    return SiteBuilder(
+        library_root,
+        catalog,
+        include_papers=include_papers,
+        paper_links=paper_links,
+    ).build()

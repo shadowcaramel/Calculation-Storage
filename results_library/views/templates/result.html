@@ -89,6 +89,17 @@
 </section>
 {% endif %}
 
+{% if published_in %}
+<section class="table-block">
+  <h2>Published in</h2>
+  <ul class="files">
+    {% for paper in published_in %}
+    <li><a href="{{ paper.href }}">{{ paper.title }}</a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
 <section class="table-block">
   <div class="table-head">
     <h2>Value</h2>

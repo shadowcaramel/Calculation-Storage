@@ -25,13 +25,16 @@ dev = ["pytest>=7.0"]
 results-library = "results_library.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["results_library*"]
+include = ["results_library*", "paper_storage*"]
 
 [tool.setuptools.package-data]
 results_library = [
     "views/templates/*.html",
     "views/assets/*",
     "vendor/results_schema/*",
+]
+paper_storage = [
+    "views/templates/*.html",
 ]
 
 [tool.pytest.ini_options]

@@ -27,9 +27,11 @@ MACOS + CHROME
     File -> Open File... и выберите index.html.
 
 ЧТО РЕДАКТИРОВАТЬ
-  annotations.toml и comparisons.toml правятся вручную.
-  Не редактируйте index.html, legacy.html, site/, catalog.* и книгу Excel;
+  annotations.toml, comparisons.toml, changelog.json и papers.json правятся вручную.
+  Не редактируйте index.html, legacy.html, site/, paper-site/, catalog.* и книгу Excel;
   они пересобираются.
+  Статьи: python -m results_library.cli build --with-papers
+  Библиография: bibliography/my_publications.bib (--bibliography или PAPER_BIBLIOGRAPHY).
 
 --------------------------------------------------------------------------------
 
@@ -62,6 +64,8 @@ MACOS + CHROME
     index.html.
 
 WHAT TO EDIT
-  annotations.toml and comparisons.toml are hand-edited.
-  Do not edit index.html, legacy.html, site/, catalog.*, or the Excel workbook;
+  annotations.toml, comparisons.toml, changelog.json, and papers.json are hand-edited.
+  Do not edit index.html, legacy.html, site/, paper-site/, catalog.*, or the Excel workbook;
   they are regenerated.
+  Papers: python -m results_library.cli build --with-papers
+  Bibliography: bibliography/my_publications.bib (--bibliography or PAPER_BIBLIOGRAPHY).

@@ -3,7 +3,26 @@
 {% block title %}{% if lineage == 'legacy' %}Legacy calculation results{% else %}Calculation results{% endif %}{% endblock %}
 
 {% block content %}
-<h1>{% if lineage == 'legacy' %}Legacy calculation results{% else %}Calculation results{% endif %}</h1>
+<div class="mode-stack">
+  {% if papers_href %}
+  <nav class="mode-switch storage-toggle" aria-label="Library">
+    <span class="is-active" aria-current="page">Calculations</span>
+    <a href="{{ papers_href }}">Papers</a>
+  </nav>
+  {% endif %}
+  <nav class="mode-switch" aria-label="Training-code path">
+    {% if lineage == "modern" %}
+    <span class="is-active" aria-current="page">Modern</span>
+    {% else %}
+    <a href="{{ lineage_modern_href }}">Modern</a>
+    {% endif %}
+    {% if lineage == "legacy" %}
+    <span class="is-active" aria-current="page">Legacy</span>
+    {% else %}
+    <a href="{{ lineage_legacy_href }}">Legacy</a>
+    {% endif %}
+  </nav>
+</div>
 
 <section class="controls">
   <input type="search" id="filter-text" placeholder="Filter by nucleus, state, observable, note..." autocomplete="off" enterkeyhint="search">

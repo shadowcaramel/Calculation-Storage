@@ -2,6 +2,7 @@
 Command line interface for the results library.
 
     python -m results_library.cli build   --library "G:/Shared drives/Calculation results/Calculation storage"
+    python -m results_library.cli build --with-papers --bibliography path/to/my_publications.bib
     python -m results_library.cli catalog --library ...
     python -m results_library.cli site    --library ...
     python -m results_library.cli excel   --library ...
@@ -101,8 +102,16 @@ def command_site(args: argparse.Namespace) -> int:
     from results_library.views.site import build_site
 
     library = resolve_library(args)
+    ready, include_papers, paper_links = _papers_for_build(args, library)
+    if not ready:
+        return 1
     frame, _ = build_catalog(library)
-    build_site(library, frame)
+    build_site(
+        library,
+        frame,
+        include_papers=include_papers,
+        paper_links=paper_links,
+    )
     print(f"Site: {library / 'index.html'}  (legacy: {library / 'legacy.html'})")
     return 0
 
@@ -152,12 +161,20 @@ def command_build(args: argparse.Namespace) -> int:
     from results_library.views.site import build_site
 
     library = resolve_library(args)
+    ready, include_papers, paper_links = _papers_for_build(args, library)
+    if not ready:
+        return 1
 
     frame, scan = build_catalog(library)
     paths = write_catalog(frame, library)
     print(f"Catalog: {len(frame)} result(s) -> {paths['parquet'].name}, {paths['sqlite'].name}")
 
-    build_site(library, frame)
+    build_site(
+        library,
+        frame,
+        include_papers=include_papers,
+        paper_links=paper_links,
+    )
     print(f"Site:    {library / 'index.html'}  (legacy: {library / 'legacy.html'})")
 
     if not args.no_excel:
@@ -267,6 +284,63 @@ def command_serve(args: argparse.Namespace) -> int:
 # Parser
 # ---------------------------------------------------------------------------
 
+def _bibliography_path(args: argparse.Namespace) -> Optional[Path]:
+    """Forwarded to paper storage only when ``--with-papers`` is set."""
+    candidate = getattr(args, "bibliography", None) or os.environ.get("PAPER_BIBLIOGRAPHY")
+    if not candidate:
+        return None
+    path = Path(candidate)
+    if not path.is_file():
+        print(f"Bibliography not found, continuing without it: {path}", file=sys.stderr)
+        return None
+    return path
+
+
+def _papers_for_build(args: argparse.Namespace, library: Path):
+    """Build the paper site first when requested.
+
+    Returns ``(ready, include_papers, paper_links)``. ``ready`` is false when
+    ``--with-papers`` was asked for and the paper build did not succeed, so the
+    caller must not write the calculation site. A plain build never imports
+    ``paper_storage``.
+    """
+    if not getattr(args, "with_papers", False):
+        return True, False, None
+    if not (library / "papers.json").is_file():
+        print(
+            f"papers.json is missing in {library}. "
+            "A --with-papers build needs that file.",
+            file=sys.stderr,
+        )
+        return False, False, None
+    from paper_storage.build import build_papers
+
+    result = build_papers(library, bibliography=_bibliography_path(args))
+    for issue in result.issues:
+        print(f"  {issue}")
+    if not result.ok:
+        print(
+            "Paper storage build failed; the calculation site was not written.",
+            file=sys.stderr,
+        )
+        return False, False, None
+    print(f"Papers:  {result.site / 'index.html'}")
+    return True, True, result.links
+
+
+def _add_paper_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--with-papers",
+        action="store_true",
+        help="also build the paper site and link it from the calculation pages",
+    )
+    parser.add_argument(
+        "--bibliography",
+        default=None,
+        help="my_publications.bib, used only with --with-papers",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     # Shared flags are attached to the top-level parser *and* every
     # subparser so both of these work:
@@ -305,6 +379,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="rebuild catalog, site, and workbook (the everyday command)",
         parents=[shared],
     )
+    _add_paper_flags(everything)
     everything.add_argument("--no-excel", action="store_true", help="skip the workbook")
     everything.add_argument(
         "--include-probing",
@@ -321,6 +396,7 @@ def build_parser() -> argparse.ArgumentParser:
     site = subparsers.add_parser(
         "site", help="rebuild the static HTML site", parents=[shared]
     )
+    _add_paper_flags(site)
     site.set_defaults(func=command_site)
 
     excel = subparsers.add_parser(

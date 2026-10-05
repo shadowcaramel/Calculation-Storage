@@ -71,15 +71,16 @@
 {%- endif -%}
 {% endmacro %}
 
+{% from "_icons.html" import icon %}
 {% macro table_block(rows, heading, table_id, root, exports, heading_latex=None) %}
 <section class="table-block">
   <div class="table-head">
     <h2>{{ tex(heading_latex, heading) }}</h2>
     <div class="actions">
-      <button type="button" class="copy" data-target="latex-{{ table_id }}">Copy LaTeX</button>
-      <button type="button" class="copy" data-target="tsv-{{ table_id }}">Copy TSV</button>
-      <a class="button" href="{{ root }}exports/{{ table_id }}.csv" download>Download CSV</a>
-      <a class="button" href="{{ root }}exports/{{ table_id }}.tex" download>Download .tex</a>
+      <button type="button" class="copy" data-target="latex-{{ table_id }}">{{ icon("copy") }} Copy LaTeX</button>
+      <button type="button" class="copy" data-target="tsv-{{ table_id }}">{{ icon("copy") }} Copy TSV</button>
+      <a class="button" href="{{ root }}exports/{{ table_id }}.csv" download>{{ icon("download") }} Download CSV</a>
+      <a class="button" href="{{ root }}exports/{{ table_id }}.tex" download>{{ icon("download") }} Download .tex</a>
     </div>
   </div>
 

@@ -34,6 +34,7 @@
 <link rel="stylesheet" href="{{ root }}assets/style.css">
 </head>
 <body>
+{% from "_icons.html" import icon %}
 <header>
   <div class="bar">
     <nav class="crumbs">
@@ -44,6 +45,13 @@
       {%- endif %}
       {%- block crumbs %}{% endblock %}
     </nav>
+    {% if not catalogue_page %}
+    {% if papers_href %}
+    <nav class="lineage-toggle storage-toggle" aria-label="Library">
+      <span class="lineage-option is-active" aria-current="page">Calculations</span>
+      <a class="lineage-option" href="{{ papers_href }}">Papers</a>
+    </nav>
+    {% endif %}
     <nav class="lineage-toggle" aria-label="Training-code path">
       {% if lineage == "modern" %}
       <span class="lineage-option is-active" aria-current="page">Modern</span>
@@ -56,11 +64,41 @@
       <a class="lineage-option" href="{{ lineage_legacy_href }}">Legacy</a>
       {% endif %}
     </nav>
-    <button type="button" class="theme-toggle" id="theme-toggle"
-            aria-label="Switch between light and dark appearance">
-      <span class="theme-to-dark">Dark</span>
-      <span class="theme-to-light">Light</span>
-    </button>
+    {% endif %}
+    <div class="header-actions">
+      {% if changes %}
+      <div class="changes-wrap">
+        <button type="button" class="changes-toggle" id="changes-toggle"
+                aria-expanded="false" aria-controls="changes-panel"
+                data-newest="{{ changes[0].id }}">
+          {{ icon("history") }} Changes<span class="changes-dot" hidden></span>
+        </button>
+        <div class="changes-panel" id="changes-panel" hidden>
+          <ol>
+            {% for change in changes %}
+            <li data-change-id="{{ change.id }}">
+              {% if change.date %}<time datetime="{{ change.date }}">{{ change.date }}</time>{% endif %}
+              <p>{{ change.message }}</p>
+              {% if change.links %}
+              <p class="changes-links">
+                {% for link in change.links %}
+                {% if not loop.first %}<span class="sep">·</span>{% endif %}
+                <a href="{{ link.href }}">{{ link.label }}</a>
+                {% endfor %}
+              </p>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ol>
+        </div>
+      </div>
+      {% endif %}
+      <button type="button" class="theme-toggle" id="theme-toggle"
+              aria-label="Switch between light and dark appearance">
+        <span class="theme-to-dark">{{ icon("moon") }} Dark</span>
+        <span class="theme-to-light">{{ icon("sun") }} Light</span>
+      </button>
+    </div>
   </div>
 </header>
 <main>

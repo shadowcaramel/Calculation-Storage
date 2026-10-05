@@ -693,7 +693,7 @@ class TestSite:
         assert "nucleus/6He.html" not in legacy_page
         assert 'href="legacy.html"' in index
         assert 'href="index.html"' in legacy_page
-        assert "lineage-toggle" in index
+        assert "mode-switch" in index
         assert "1 modern" in index
         assert "1 legacy" in index
         assert (site / "nucleus" / "6He.html").exists()
@@ -1382,3 +1382,112 @@ class TestCrossNucleus:
         assert row["reference_nucleus"] == "16C"
         assert row["reference_alias"] == "gs"
         assert "--to--" not in row["id"]
+
+
+# ---------------------------------------------------------------------------
+# Changes, and the optional paper-site hook
+# ---------------------------------------------------------------------------
+
+class TestChangesAndPapers:
+    def test_changelog_sentence_is_in_the_header(self, library):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        frame, _ = build_catalog(library)
+        working = frame[frame["status"] == "working"].iloc[0]
+        (library / "changelog.json").write_text(
+            json.dumps(
+                {
+                    "changes": [
+                        {
+                            "id": "2026-10-02-note",
+                            "date": "2026-10-02",
+                            "message": "Legacy 2H extrapolations are added.",
+                            "nucleus": "6He",
+                            "paper": "mazur2024machine",
+                            "results": [working["id"]],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        site = build_site(library, frame)
+        index = (site / "index.html").read_text(encoding="utf-8")
+        assert "Legacy 2H extrapolations are added." in index
+        assert 'id="changes-toggle"' in index
+        assert "storage-toggle" not in index
+        assert "mazur2024machine" not in index
+        assert "6He" in index
+
+    def test_paper_link_in_changelog_requires_the_flag(self, library):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        frame, _ = build_catalog(library)
+        (library / "changelog.json").write_text(
+            json.dumps(
+                {
+                    "changes": [
+                        {
+                            "id": "2026-10-02-paper",
+                            "date": "2026-10-02",
+                            "message": "A paper was linked.",
+                            "paper": "mazur2024machine",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        (library / "paper-site").mkdir()
+        (library / "paper-site" / "index.html").write_text("<p>leftover</p>", encoding="utf-8")
+        plain = build_site(library, frame)
+        plain_html = (plain / "index.html").read_text(encoding="utf-8")
+        assert "storage-toggle" not in plain_html
+        assert "mazur2024machine" not in plain_html
+
+        linked = build_site(
+            library,
+            frame,
+            include_papers=True,
+            paper_links={
+                frame.iloc[0]["id"]: [
+                    {
+                        "id": "mazur2024machine",
+                        "title": "Machine Learning in the Problem of Extrapolating Variational Calculations in Nuclear Physics",
+                        "href": "paper-site/mazur2024machine.html",
+                    }
+                ]
+            },
+        )
+        html = (linked / "index.html").read_text(encoding="utf-8")
+        assert "storage-toggle" in html
+        assert "paper-site/mazur2024machine.html" in html
+        result_page = linked / "results" / (frame.iloc[0]["id"].replace("/", "__") + ".html")
+        result_html = result_page.read_text(encoding="utf-8")
+        assert "Published in" in result_html
+        assert "Machine Learning in the Problem of Extrapolating" in result_html
+
+    def test_plain_build_does_not_import_paper_storage(self, tmp_path):
+        pytest.importorskip("jinja2")
+        library = tmp_path / "empty"
+        library.mkdir()
+        (library / "bundles").mkdir()
+        for name in list(sys.modules):
+            if name == "paper_storage" or name.startswith("paper_storage."):
+                del sys.modules[name]
+        assert cli_main(["build", "--library", str(library), "--no-excel"]) == 0
+        assert not any(
+            name == "paper_storage" or name.startswith("paper_storage.")
+            for name in sys.modules
+        )
+
+    def test_with_papers_stops_before_the_calculation_site(self, tmp_path):
+        library = tmp_path / "empty"
+        library.mkdir()
+        (library / "bundles").mkdir()
+        assert cli_main(["build", "--library", str(library), "--with-papers", "--no-excel"]) == 1
+        assert not (library / "site" / "index.html").exists()
+        assert not (library / "index.html").exists()
+        assert not (library / "catalog.parquet").exists()

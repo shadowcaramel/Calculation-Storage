@@ -29,4 +29,11 @@ catalog.parquet
 catalog.db
 annotations.toml
 site/
+paper-site/
+papers/
+papers.json
+changelog.json
 calculation_results.xlsx
+
+# Local drop of a published PDF and screenshots. The shared library holds the copy.
+published work example/

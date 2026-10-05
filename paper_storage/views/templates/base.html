@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fcfcfd">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0d10">
+<title>{% block title %}Papers{% endblock %}</title>
+<script>
+(function () {
+  try {
+    var saved = localStorage.getItem("results-theme");
+    if (saved === "dark" || saved === "light") {
+      document.documentElement.setAttribute("data-theme", saved);
+    }
+    var dark = saved === "dark" || (
+      saved !== "light"
+      && window.matchMedia
+      && window.matchMedia("(prefers-color-scheme: dark)").matches
+    );
+    var color = dark ? "#0b0d10" : "#fcfcfd";
+    document.querySelectorAll('meta[name="theme-color"]').forEach(function (meta) {
+      meta.setAttribute("content", color);
+    });
+  } catch (err) {}
+})();
+</script>
+<link rel="stylesheet" href="{{ root }}assets/katex/katex.min.css">
+<link rel="stylesheet" href="{{ root }}assets/style.css">
+</head>
+<body>
+{% from "_icons.html" import icon %}
+<header>
+  <div class="bar">
+    <nav class="crumbs">
+      <a href="index.html">Papers</a>
+      {% block crumbs %}{% endblock %}
+    </nav>
+    {% if not catalogue_page %}
+    <nav class="lineage-toggle storage-toggle" aria-label="Library">
+      {% if calculations_href %}
+      <a class="lineage-option" href="{{ calculations_href }}">Calculations</a>
+      {% else %}
+      <span class="lineage-option">Calculations</span>
+      {% endif %}
+      <span class="lineage-option is-active" aria-current="page">Papers</span>
+    </nav>
+    {% endif %}
+    <div class="header-actions">
+      <button type="button" class="theme-toggle" id="theme-toggle"
+              aria-label="Switch between light and dark appearance">
+        <span class="theme-to-dark">{{ icon("moon") }} Dark</span>
+        <span class="theme-to-light">{{ icon("sun") }} Light</span>
+      </button>
+    </div>
+  </div>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+<footer>
+  <p>Generated {{ generated_at }}. Rebuild with
+     <code>python -m paper_storage build</code>
+     or <code>python -m results_library.cli build --with-papers</code>.</p>
+</footer>
+<script src="{{ root }}assets/app.js"></script>
+<script src="{{ root }}assets/katex/katex.min.js"></script>
+</body>
+</html>

@@ -27,6 +27,17 @@
 </section>
 {% endif %}
 
+{% if published_in %}
+<section class="table-block">
+  <h2>Published in</h2>
+  <ul class="files">
+    {% for paper in published_in %}
+    <li><a href="{{ paper.href }}">{{ paper.title }}</a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
 {% for group in groups %}
 {{ table_block(group.rows, group.heading, group.table_id, root, group.exports, group.heading_latex) }}
 {% endfor %}
