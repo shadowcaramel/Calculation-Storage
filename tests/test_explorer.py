@@ -1,0 +1,224 @@
+"""Tests for the explorer: the data file the build writes, and the app over it."""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+import pytest
+
+from results_library.annotations import lint_annotations, merge_annotation
+from results_library.catalog import build_catalog
+from results_library.cli import main as cli_main
+from results_library.views.app import (
+    DATA_FILENAME,
+    EXPLORER_DIRNAME,
+    EXPLORER_PAGE,
+    build_explorer,
+    headline_ids,
+)
+from results_schema.models import Variant
+
+from tests.test_results_library import _c16_transition, _computed, _he6_record, _place
+
+
+def _read_catalog(library: Path) -> dict:
+    text = (library / EXPLORER_DIRNAME / DATA_FILENAME).read_text(encoding="utf-8")
+    prefix, suffix = "window.CATALOG = ", ";\n"
+    assert text.startswith(prefix) and text.endswith(suffix)
+    return json.loads(text[len(prefix):-len(suffix)])
+
+
+def _row(**fields) -> dict:
+    base = {"lineage": "legacy", "family": "2H/1p-T0-n1/Eabs", "status": "probing"}
+    base.update(fields)
+    return base
+
+
+@pytest.fixture
+def library(tmp_path: Path) -> Path:
+    root = tmp_path / "library"
+    root.mkdir()
+    first = _he6_record("2026-08-18_15-02-11")
+    second = _he6_record(
+        "2026-08-19_10-00-00",
+        computed=_computed(median=2.650, N_models=8),
+        variant=Variant(
+            selection_set="all_models",
+            bounds={"Nmax": [2, 6], "hOmega": [13, 40]},
+            potential="Daejeon16",
+        ),
+    )
+    _place(root, first)
+    _place(root, second)
+    _place(root, _c16_transition("2026-08-20_09-00-00"), files={"histogram.png": b"\x89PNG"})
+    root.joinpath("annotations.toml").write_text(
+        f'["{first.id}"]\nstatus = "working"\nnote = "Own weights </script> here."\ntags = ["scan"]\n',
+        encoding="utf-8",
+    )
+    return root
+
+
+class TestHeadline:
+    def test_status_beats_selection_order(self):
+        rows = [
+            _row(id="a", selection_set="19_convVP_loss_straight_ns", status="probing"),
+            _row(id="b", selection_set="all_models", status="published"),
+        ]
+        assert headline_ids(rows) == {"b"}
+
+    def test_legacy_selection_order(self):
+        rows = [
+            _row(id="ten", selection_set="10_loss_vp_straight_nsigma"),
+            _row(id="all", selection_set="all_models"),
+            _row(id="twenty-three", selection_set="23_loss_straight_ns"),
+            _row(id="nineteen", selection_set="19_convVP_loss_straight_ns"),
+        ]
+        assert headline_ids(rows) == {"nineteen"}
+        assert headline_ids([r for r in rows if r["id"] != "nineteen"]) == {"twenty-three"}
+        assert headline_ids([r for r in rows if r["id"] in ("ten", "all")]) == {"ten"}
+
+    def test_newest_run_breaks_ties(self):
+        rows = [
+            _row(id="old", selection_set="final", run_datetime="2023-06-01T10:00:00"),
+            _row(id="new", selection_set="final", run_datetime="2023-06-09T10:00:00"),
+        ]
+        assert headline_ids(rows) == {"new"}
+
+    def test_pin_wins(self):
+        rows = [
+            _row(id="best", selection_set="final", status="published"),
+            _row(id="pinned", selection_set="all_models", headline=True),
+        ]
+        assert headline_ids(rows) == {"pinned"}
+
+    def test_one_headline_per_lineage_and_family(self):
+        rows = [
+            _row(id="legacy-a"),
+            _row(id="modern-a", lineage="modern"),
+            _row(id="other", family="6Li/1p-T0-n1/Eabs"),
+        ]
+        assert headline_ids(rows) == {"legacy-a", "modern-a", "other"}
+
+
+class TestHeadlineAnnotation:
+    def test_merge_reads_true_only(self):
+        assert merge_annotation({}, {"headline": True})["headline"] is True
+        assert merge_annotation({}, {"headline": "yes"})["headline"] is False
+        assert merge_annotation({}, {})["headline"] is False
+
+    def test_lint_rejects_non_boolean(self):
+        problems = lint_annotations({"x": {"headline": "yes"}}, {"x"})
+        assert any("headline must be true or false" in p for p in problems)
+        assert lint_annotations({"x": {"headline": True}}, {"x"}) == []
+
+
+class TestDataFile:
+    def test_build_writes_page_data_and_assets(self, library):
+        frame, _ = build_catalog(library)
+        page = build_explorer(library, frame)
+        assert page == library / EXPLORER_PAGE
+        html = page.read_text(encoding="utf-8")
+        for asset in ("explorer/catalog.js", "explorer/explorer.js", "explorer/explorer.css", "explorer/katex/katex.min.js"):
+            assert asset in html
+            assert (library / asset).is_file()
+        assert list((library / EXPLORER_DIRNAME / "fonts").glob("*.woff2"))
+        assert (library / EXPLORER_DIRNAME / "katex" / "fonts").is_dir()
+
+    def test_rows_carry_what_the_app_reads(self, library):
+        frame, _ = build_catalog(library)
+        build_explorer(library, frame)
+        data = _read_catalog(library)
+        assert data["headline_order"][:2] == ["final", "19_convVP_loss_straight_ns"]
+        assert len(data["rows"]) == 3
+        assert data["nuclei"]["6He"]["chart"] == {"Z": 2, "N": 4, "A": 6, "symbol": "He"}
+
+        he6 = [r for r in data["rows"] if r["nucleus"] == "6He"]
+        assert {r["selection_set"] for r in he6} == {"final", "all_models"}
+        # Same run, family, potential and bounds: one trained ensemble.
+        assert len({r["ensemble"] for r in he6}) == 1
+        heads = [r for r in he6 if r["headline"]]
+        assert len(heads) == 1 and heads[0]["status"] == "working"
+        assert heads[0]["tags"] == ["scan"]
+        assert heads[0]["nmax"] == [2, 6] and heads[0]["homega"] == [13, 40]
+        assert heads[0]["latex"].startswith("\\begin{tabular}")
+
+    def test_bundle_paths_are_shortened_and_root_relative(self, library):
+        frame, _ = build_catalog(library)
+        build_explorer(library, frame)
+        row = next(r for r in _read_catalog(library)["rows"] if r["nucleus"] == "6He")
+        assert row["bundle"].startswith("bundles/")
+        assert (library / row["bundle"]).is_dir()
+        plot = row["plots"][0]
+        assert plot["href"] == "@/histogram.png"
+        assert (library / row["bundle"] / plot["href"][2:]).is_file()
+        assert row["files"][0] == {"name": "bundle folder", "label": "", "href": row["bundle"]}
+
+    def test_closing_tags_in_notes_are_escaped(self, library):
+        frame, _ = build_catalog(library)
+        build_explorer(library, frame)
+        text = (library / EXPLORER_DIRNAME / DATA_FILENAME).read_text(encoding="utf-8")
+        assert "</script>" not in text
+        assert any("Own weights </script> here." == r["note"] for r in _read_catalog(library)["rows"])
+
+    def test_paper_links_become_used_in(self, library):
+        frame, _ = build_catalog(library)
+        target = frame["id"].iloc[0]
+        links = {target: [{"id": "mazur2024", "title": "Mazur 2024", "href": "paper-site/mazur2024.html"}]}
+        build_explorer(library, frame, paper_links=links)
+        data = _read_catalog(library)
+        assert data["with_papers"] is True
+        row = next(r for r in data["rows"] if r["id"] == target)
+        assert row["papers"] == links[target]
+
+    def test_rebuild_replaces_the_folder(self, library):
+        frame, _ = build_catalog(library)
+        build_explorer(library, frame)
+        stray = library / EXPLORER_DIRNAME / "stale.js"
+        stray.write_text("old", encoding="utf-8")
+        build_explorer(library, frame)
+        assert not stray.exists()
+
+    def test_cli_build_writes_explorer(self, library):
+        pytest.importorskip("jinja2")
+        pytest.importorskip("openpyxl")
+        assert cli_main(["build", "--library", str(library), "--no-excel"]) == 0
+        assert (library / EXPLORER_PAGE).is_file()
+        assert (library / "index.html").is_file()
+
+
+class TestInBrowser:
+    """Open the built page in a headless browser and walk the main routes.
+
+    Needs ``pip install playwright`` and ``playwright install chromium``, or
+    ``EXPLORER_TEST_CHROMIUM`` pointing at a Chromium binary. Skipped otherwise.
+    """
+
+    def test_routes_render_without_errors(self, library):
+        sync_api = pytest.importorskip("playwright.sync_api")
+        frame, _ = build_catalog(library)
+        page_path = build_explorer(library, frame)
+        family = next(r for r in _read_catalog(library)["rows"] if r["nucleus"] == "6He")["family"]
+        with sync_api.sync_playwright() as pw:
+            try:
+                browser = pw.chromium.launch(executable_path=os.environ.get("EXPLORER_TEST_CHROMIUM") or None)
+            except Exception as exc:  # no browser installed for this playwright
+                pytest.skip(f"no Chromium for Playwright: {exc}")
+            page = browser.new_page()
+            errors: list[str] = []
+            page.on("pageerror", lambda exc: errors.append(str(exc)))
+            base = page_path.as_uri()
+            page.goto(base)
+            assert page.locator("h1").inner_text() == "Modern library"
+            page.goto(base + "#modern/n/6He")
+            assert page.locator(".famrow").count() == 1
+            page.goto(base + "#modern/f/" + family.replace("/", "%2F"))
+            assert page.locator("table.pivot tbody tr").count() == 1
+            page.locator("button.cell").first.click()
+            assert page.locator("#insp").is_visible()
+            assert "result" in page.locator("#insp .eyebrow").first.inner_text().lower()
+            page.goto(base + "#legacy")
+            assert page.locator("h1").inner_text() == "Legacy library"
+            browser.close()
+        assert errors == []

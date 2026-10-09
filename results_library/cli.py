@@ -99,6 +99,7 @@ def command_catalog(args: argparse.Namespace) -> int:
 
 def command_site(args: argparse.Namespace) -> int:
     from results_library.catalog import build_catalog
+    from results_library.views.app import build_explorer
     from results_library.views.site import build_site
 
     library = resolve_library(args)
@@ -113,6 +114,8 @@ def command_site(args: argparse.Namespace) -> int:
         paper_links=paper_links,
     )
     print(f"Site: {library / 'index.html'}  (legacy: {library / 'legacy.html'})")
+    page = build_explorer(library, frame, paper_links=paper_links)
+    print(f"Explorer: {page}")
     return 0
 
 
@@ -157,6 +160,7 @@ def command_lint(args: argparse.Namespace) -> int:
 def command_build(args: argparse.Namespace) -> int:
     from results_library.catalog import build_catalog, write_catalog
     from results_library.lint import lint_library, summarise
+    from results_library.views.app import build_explorer
     from results_library.views.excel import build_workbook
     from results_library.views.site import build_site
 
@@ -176,6 +180,8 @@ def command_build(args: argparse.Namespace) -> int:
         paper_links=paper_links,
     )
     print(f"Site:    {library / 'index.html'}  (legacy: {library / 'legacy.html'})")
+    page = build_explorer(library, frame, paper_links=paper_links)
+    print(f"Explorer: {page}")
 
     if not args.no_excel:
         try:
@@ -394,7 +400,7 @@ def build_parser() -> argparse.ArgumentParser:
     catalog.set_defaults(func=command_catalog)
 
     site = subparsers.add_parser(
-        "site", help="rebuild the static HTML site", parents=[shared]
+        "site", help="rebuild the static HTML site and the explorer", parents=[shared]
     )
     _add_paper_flags(site)
     site.set_defaults(func=command_site)

@@ -94,6 +94,36 @@ Chrome, quit Chrome fully (Cmd-Q), reopen, then File → Open File… and choose
 A one-page `README.txt` with the same instructions is copied into the library
 folder on each site build.
 
+## Explorer (new)
+
+Each build also writes `explorer.html` in the library folder, next to
+`index.html`, plus an `explorer/` folder it loads from. It is the same catalog
+as one app, opened the same way (from the local library folder, no network):
+
+- **Modern | Legacy** switch at the top. The two libraries are never mixed.
+- A map of the nuclei in the library (Z up, N across) and a family tree on the
+  left.
+- **Nucleus:** one row per family (nucleus, state, observable) with its
+  headline value and a strip showing where the other variants land.
+- **Family:** the headline value, filters (selection set, Nmax start,
+  potential, status, tags, and papers on a `--with-papers` build), a scan of
+  value against the Nmax window or the run date, and an ensemble table with
+  one row per trained ensemble and one column per selection set.
+- **Result:** a side panel with the value, data selection, the other
+  selection sets of the same ensemble, plots (click to enlarge, arrow keys
+  between them), notes, statistics, provenance, files, and Copy LaTeX / TSV /
+  annotation.
+
+Routes live in the URL hash (`explorer.html#legacy/n/2H`), so the back button
+and bookmarks work. The classic site keeps building alongside it for now.
+
+Which result heads a family: a result annotated `headline = true` wins;
+otherwise published before working before probing, then the selection set in
+this order: `final`, `19_convVP_loss_straight_ns`, `23_loss_straight_ns`,
+`10_loss_vp_straight_nsigma`, `all_models` (others after, alphabetically),
+then the newest run. The order is `HEADLINE_SELECTION_ORDER` in
+`results_library/views/app.py`.
+
 ## Everyday use
 
 ```bash
@@ -151,6 +181,7 @@ title   = "16C B(E2) (2+,T=2)(2) -> (2+,T=2)"
 tags    = ["hOmega-scan", "own-weights"]
 note    = "Own sample weights; hOmega 13-40 MeV."
 outcome = "Promising; filter kept 261 of 500 models."
+headline = true              # optional: this result heads its family in the explorer
 ```
 
 `outcome` is separate from `note` on purpose: it records *why* an exploratory
@@ -358,8 +389,12 @@ python -m results_library.sync_schema --check --source "G:/My Drive/!ML/2026 rew
 ## Tests
 
 ```bash
-pytest tests/test_results_library.py
+pytest
 ```
+
+The explorer's browser test runs when Playwright and a Chromium are available
+(`pip install playwright && playwright install chromium`, or set
+`EXPLORER_TEST_CHROMIUM` to a Chromium binary); otherwise it is skipped.
 
 ## License
 
