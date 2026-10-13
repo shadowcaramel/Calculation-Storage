@@ -231,7 +231,15 @@ def _display_labels(record: Dict[str, Any]) -> Dict[str, Any]:
     median = computed.get("median")
     err_low = computed.get("err_low")
     err_high = computed.get("err_high")
-    if median is not None and err_low is not None and err_high is not None:
+    if (
+        computed.get("uncertainty_method") == "std"
+        and median is not None
+        and err_low is not None
+    ):
+        sigma = float(err_low)
+        labels["value_latex"] = f"{float(median):.3f} \\pm {sigma:.3f}"
+        labels["value_label"] = f"{float(median):.3f} \u00b1 {sigma:.3f}"
+    elif median is not None and err_low is not None and err_high is not None:
         labels["value_latex"] = format_value_with_uncertainty(
             float(median), float(err_low), float(err_high)
         )

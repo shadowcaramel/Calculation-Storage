@@ -247,6 +247,7 @@ def _material_view(
         "image_href": image_href,
         "file_href": file_href,
         "image_name": Path(material.image).name if material.image else "",
+        "file_name": Path(material.file).name if material.file else "",
         "latex_text": latex_text,
         "latex_dom_id": f"latex-{paper.id}-{material.id}",
         "pdf_page_href": pdf_page_href,
