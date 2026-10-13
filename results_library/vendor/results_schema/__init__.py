@@ -63,6 +63,7 @@ from results_schema.slugs import (
     transition_slug,
     v2_id_from_v1,
 )
+from results_schema.training import lr_schedule_label, training_from_config
 
 #: Bumped only when a stored record's meaning changes; see FIELDS.md.
 SCHEMA_VERSION = 2
@@ -88,6 +89,7 @@ __all__ = [
     "format_run_date_label",
     "format_value_with_uncertainty",
     "lineage_prefix",
+    "lr_schedule_label",
     "mathtext_to_unicode",
     "normalize_lineage",
     "nuclide_latex",
@@ -115,6 +117,7 @@ __all__ = [
     "state_unicode",
     "subject_latex",
     "subject_unicode",
+    "training_from_config",
     "transition_slug",
     "v2_id_from_v1",
     "validate_reference_declaration",
