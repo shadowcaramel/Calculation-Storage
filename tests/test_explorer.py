@@ -264,7 +264,8 @@ class TestInBrowser:
             page.locator('button[data-sort="nmax"]').click()
             assert page.locator('th:has(button[data-sort="nmax"])').get_attribute("aria-sort") == "descending"
             page.locator("button.cell").first.click()
-            assert page.locator("#insp").is_visible()
+            # The panel opens on the hashchange that the click starts.
+            page.locator("#insp").wait_for(state="visible")
             assert "result" in page.locator("#insp .eyebrow").first.inner_text().lower()
             page.goto(base + "#legacy")
             assert page.locator("h1").inner_text().lower() == "legacy library"
