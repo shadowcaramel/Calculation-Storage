@@ -77,7 +77,12 @@ button { font: inherit; color: inherit; }
 a { color: var(--acc-text); text-decoration-thickness: 1.5px; text-underline-offset: 2px; }
 body[data-lib="papers"] a { text-decoration-color: var(--yellow); }
 [hidden] { display: none !important; }
-.mono, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+/* Figures: numbers are set in the geometric display face with tabular
+   lining figures, so columns of values line up and read as part of the
+   Bauhaus type system. Values are typeset by KaTeX in that face (.fig).
+   The monospaced face is kept for ids, tags and code. */
+.num, .fig, .fig .katex { font-family: var(--display); font-weight: 600; font-variant-numeric: tabular-nums lining-nums; letter-spacing: 0; }
+.mono { font-family: var(--mono); }
 :focus-visible { outline: 3px solid var(--yellow); outline-offset: 1px; }
 ::selection { background: var(--yellow); color: #141414; }
 
@@ -143,7 +148,7 @@ h3 { font: 700 12px/1.2 var(--display); letter-spacing: 0.08em; text-transform: 
 .tree a[aria-current="page"] { border-left-color: var(--acc); background: var(--sunk); color: var(--ink); }
 .tree .nuc { font: 700 13px/1.2 var(--display); }
 .tree .fam { padding-left: 22px; font-size: 13px; }
-.tree .c { margin-left: auto; font: 12px var(--mono); color: var(--muted); }
+.tree .c { margin-left: auto; font: 600 11.5px var(--display); font-variant-numeric: tabular-nums; color: var(--muted); }
 .tree .sub { padding-left: 22px; font-size: 12.5px; }
 
 /* ---- nuclei chart (Z against N) ------------------------------------------ */
@@ -158,25 +163,35 @@ h3 { font: 700 12px/1.2 var(--display); letter-spacing: 0.08em; text-transform: 
 .nz-cell.cur rect, .nz-cell.cur:hover rect { fill: var(--acc); stroke: var(--ink); }
 .nz-cell.cur text, .nz-cell.cur:hover text { fill: var(--on-acc); }
 .nz-cell text { fill: var(--ink); font-family: var(--display); }
-.nz-cell .cnt { fill: var(--muted); font-family: var(--mono); }
+.nz-cell .cnt { fill: var(--muted); font-family: var(--display); font-weight: 600; font-variant-numeric: tabular-nums; }
 .nz-cell.empty text { fill: var(--muted); opacity: 0.6; }
-.nz-axis { fill: var(--muted); font: 10px var(--mono); }
+.nz-axis { fill: var(--muted); font: 600 9.5px var(--display); font-variant-numeric: tabular-nums; }
 .nz-title { fill: var(--muted); font: 700 10px var(--display); letter-spacing: 0.12em; }
 
 /* ---- overview ------------------------------------------------------------- */
 
-.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 32px; align-items: start; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 32px; align-items: start; }
+.hero .lead { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
 .hero .intro { padding-top: 4px; }
-.hero .intro .block { margin-top: 24px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border: 2px solid var(--rule); }
-.hero .intro .block a { display: flex; flex-direction: column; gap: 6px; padding: 12px; text-decoration: none; color: var(--ink); border-right: 2px solid var(--rule); }
-.hero .intro .block a:last-child { border-right: 0; }
-.hero .intro .block a:hover { background: var(--ink); color: var(--paper); }
-.hero .intro .block b { font: 800 18px/1 var(--display); }
+h2.nocaps { text-transform: none; letter-spacing: 0; font-size: 16px; }
+.prows > :first-child { border-top: 0; }
+.prow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 16px; padding: 10px 16px; border-top: 1px solid var(--hair); text-decoration: none; color: inherit; align-items: baseline; }
+.prow:hover { background: var(--sunk); }
+.prow:hover .what { text-decoration: underline; text-decoration-color: var(--acc); text-decoration-thickness: 2px; }
+.prow .what { font-weight: 600; min-width: 0; }
+.prow .what .nuc { font: 700 13px/1.2 var(--display); margin-right: 2px; }
+.prow .v { font-size: 14px; white-space: nowrap; text-align: right; }
+.prow .meta { font-size: 12px; color: var(--muted); }
+.prow .n { font: 600 11.5px var(--display); color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.pstate { padding: 7px 16px 5px; background: var(--sunk); border-top: 2px solid var(--rule); font: 700 12px/1.2 var(--display); color: var(--ink-2); }
+.pstate:first-child { border-top: 0; }
+.nz-cell.pv rect { fill: var(--ink); }
+.nz-cell.pv text { fill: var(--paper); }
 
 /* ---- footer statistics ----------------------------------------------------- */
 
 .foot { margin-top: 40px; padding-top: 12px; border-top: 2px solid var(--rule); display: flex; flex-wrap: wrap; gap: 6px 24px; align-items: center; font-size: 12px; color: var(--muted); }
-.foot b { font: 500 12px var(--mono); color: var(--ink-2); }
+.foot b { font: 700 12px var(--display); font-variant-numeric: tabular-nums; color: var(--ink-2); }
 .foot .statusbar { flex: 1 1 160px; max-width: 280px; }
 .statusbar { display: flex; height: 6px; background: var(--sunk); }
 .statusbar span { display: block; height: 100%; }
@@ -200,9 +215,9 @@ h3 { font: 700 12px/1.2 var(--display); letter-spacing: 0.08em; text-transform: 
 .famrow:hover { background: var(--sunk); }
 .famrow:hover .obs { text-decoration: underline; text-decoration-color: var(--acc); text-decoration-thickness: 2px; }
 .famrow .obs { font-weight: 600; }
-.famrow .val { font: 500 13px var(--mono); white-space: nowrap; }
+.famrow .val { font-size: 14px; white-space: nowrap; }
 .famrow .meta { font-size: 12px; color: var(--muted); }
-.famrow .n { text-align: right; font: 12px var(--mono); color: var(--muted); }
+.famrow .n { text-align: right; font: 600 11.5px var(--display); font-variant-numeric: tabular-nums; color: var(--muted); }
 .strip { width: 100%; height: 26px; display: block; }
 .statedivider { padding: 8px 16px 6px; background: var(--sunk); border-top: 2px solid var(--rule); font: 700 12px/1.2 var(--display); letter-spacing: 0.02em; color: var(--ink-2); }
 .statedivider .katex { text-transform: none; letter-spacing: 0; font-size: 13px; }
@@ -213,7 +228,7 @@ h3 { font: 700 12px/1.2 var(--display); letter-spacing: 0.08em; text-transform: 
 .chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .chip { border: 1.5px solid var(--ink); background: var(--surface); padding: 3px 9px; font-size: 12.5px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; color: var(--ink); }
 .chip:hover { background: var(--sunk); }
-.chip .c { font: 11px var(--mono); color: var(--muted); }
+.chip .c { font: 600 11px var(--display); font-variant-numeric: tabular-nums; color: var(--muted); }
 .chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .chip[aria-pressed="true"] .c { color: var(--paper); opacity: 0.7; }
 .facetgrp { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 10px; align-items: baseline; }
@@ -233,7 +248,8 @@ a.pap:hover { background: var(--ink); color: var(--paper); }
 .headline > .bar { background: var(--yellow); }
 .headline > .body-h { padding: 18px 0; }
 .headline > .act { padding: 18px 18px 18px 0; display: flex; align-items: flex-end; }
-.bigval { font: 500 36px/1.05 var(--mono); letter-spacing: -0.01em; }
+.bigval { font-size: 36px; line-height: 1.1; }
+.bigval .fig, .bigval .fig .katex { font-weight: 700; }
 .bigval small { font: 600 14px var(--display); color: var(--muted); margin-left: 8px; letter-spacing: 0.04em; }
 .rule { font-size: 12.5px; color: var(--muted); max-width: 70ch; margin: 0; }
 .rule .dot { margin-right: 2px; }
@@ -242,11 +258,11 @@ a.pap:hover { background: var(--ink); color: var(--paper); }
 .plot svg { width: 100%; height: auto; display: block; overflow: visible; }
 .plot .grid line { stroke: var(--hair); }
 .plot .axis { stroke: var(--ink); stroke-width: 2; }
-.plot .ax text { fill: var(--muted); font: 11px var(--mono); }
+.plot .ax text { fill: var(--muted); font: 600 10.5px var(--display); font-variant-numeric: tabular-nums; }
 .plot .lab { fill: var(--ink-2); font: 600 11.5px var(--display); letter-spacing: 0.02em; }
 .plot .pt { cursor: pointer; }
 .plot .halo { fill: var(--yellow); stroke: var(--ink); stroke-width: 1.5; }
-.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--paper); font: 12px/1.45 var(--mono); padding: 8px 10px; z-index: 50; max-width: 360px; border-left: 4px solid var(--acc); }
+.tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--paper); font: 12.5px/1.5 var(--font); font-variant-numeric: tabular-nums; padding: 8px 10px; z-index: 50; max-width: 360px; border-left: 4px solid var(--acc); }
 .glyph { width: 11px; height: 11px; display: inline-block; vertical-align: -1px; flex: none; }
 
 /* ensemble table and paper grids */
@@ -255,9 +271,15 @@ table.pivot { border-collapse: collapse; width: 100%; font-size: 13px; }
 .pivot th { text-align: left; font: 700 10.5px/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); padding: 10px 10px 8px; border-bottom: 2px solid var(--rule); white-space: nowrap; vertical-align: bottom; }
 .pivot th .glyph { margin-right: 6px; }
 .pivot th .katex { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.pivot th[aria-sort] { padding: 0; }
+.sort { border: 0; background: none; padding: 10px 10px 8px; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline; white-space: nowrap; }
+.sort:hover { color: var(--ink); box-shadow: inset 0 -3px 0 var(--hair); }
+.sort .arr { color: var(--muted); font-family: var(--font); }
+.sort.on { color: var(--ink); box-shadow: inset 0 -3px 0 var(--acc); }
+.sort.on .arr { color: var(--ink); }
 .pivot td { padding: 6px 10px; border-bottom: 1px solid var(--hair); white-space: nowrap; }
 .pivot tr:hover td { background: var(--sunk); }
-.cell { border: 0; background: none; padding: 2px 6px; cursor: pointer; font: 13px var(--mono); display: inline-flex; gap: 6px; align-items: center; color: var(--ink); }
+.cell { border: 0; background: none; padding: 2px 6px; cursor: pointer; font: 13px var(--font); display: inline-flex; gap: 6px; align-items: center; color: var(--ink); }
 .cell:hover { background: var(--ink); color: var(--paper); }
 .cell.sel { background: var(--acc); color: var(--on-acc); }
 .cell.head { font-weight: 500; box-shadow: inset 0 -3px 0 var(--yellow); }
@@ -301,7 +323,7 @@ details > summary::marker { color: var(--acc); }
 .tally { display: grid; grid-auto-flow: column; gap: 0; border: 2px solid var(--rule); align-self: center; }
 .tally > span { padding: 6px 10px; border-right: 2px solid var(--rule); text-align: center; min-width: 64px; }
 .tally > span:last-child { border-right: 0; }
-.tally b { display: block; font: 500 16px/1.1 var(--mono); }
+.tally b { display: block; font: 700 16px/1.1 var(--display); font-variant-numeric: tabular-nums; }
 .tally i { font: 700 9.5px/1.2 var(--display); letter-spacing: 0.1em; text-transform: uppercase; font-style: normal; color: var(--muted); }
 .tally .bad b { color: var(--red); }
 .cite { font-size: 13.5px; color: var(--ink-2); margin: 10px 0 0; }
@@ -366,3 +388,4 @@ table.grid td.linked.sel button { background: var(--acc); color: var(--on-acc); 
   font-family: var(--font), KaTeX_Main, KaTeX_Math, sans-serif;
 }
 .tex, .tex .katex { white-space: nowrap; }
+.facetgrp > span .katex, .eyebrow .katex { text-transform: none; letter-spacing: 0; font-size: 12px; }

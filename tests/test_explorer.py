@@ -133,6 +133,10 @@ class TestDataFile:
         assert data["headline_order"][:2] == ["final", "19_convVP_loss_straight_ns"]
         assert len(data["rows"]) == 3
         assert data["nuclei"]["6He"]["chart"] == {"Z": 2, "N": 4, "A": 6, "symbol": "He"}
+        # Nmax and ħΩ are typeset like the classic site: N_{\max}, \hbar\Omega.
+        assert data["axes"]["Nmax"]["latex"] == "N_{\\max}"
+        assert data["axes"]["hOmega"]["latex"] == "\\hbar\\Omega"
+        assert data["label_tex"][data["axes"]["Nmax"]["label"]] == "N_{\\max}"
 
         he6 = [r for r in data["rows"] if r["nucleus"] == "6He"]
         assert {r["selection_set"] for r in he6} == {"final", "all_models"}
@@ -246,10 +250,19 @@ class TestInBrowser:
             base = page_path.as_uri()
             page.goto(base)
             assert page.locator("h1").inner_text().lower() == "modern library"
+            assert "most recent runs" in page.locator("#nzprev h2").inner_text().lower()
+            page.locator('#main [data-nuc="6He"]').hover()
+            assert "He" in page.locator("#nzprev h2").inner_text()
+            assert page.locator("#nzprev .prow").count() == 1
             page.goto(base + "#modern/n/6He")
             assert page.locator(".famrow").count() == 1
             page.goto(base + "#modern/f/" + family.replace("/", "%2F"))
             assert page.locator("table.pivot tbody tr").count() == 1
+            assert page.locator('th:has(button[data-sort="date"])').get_attribute("aria-sort") == "descending"
+            page.locator('button[data-sort="nmax"]').click()
+            assert page.locator('th:has(button[data-sort="nmax"])').get_attribute("aria-sort") == "ascending"
+            page.locator('button[data-sort="nmax"]').click()
+            assert page.locator('th:has(button[data-sort="nmax"])').get_attribute("aria-sort") == "descending"
             page.locator("button.cell").first.click()
             assert page.locator("#insp").is_visible()
             assert "result" in page.locator("#insp .eyebrow").first.inner_text().lower()

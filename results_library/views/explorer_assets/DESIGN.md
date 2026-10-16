@@ -17,7 +17,8 @@ and line has one job, and nothing is decoration. The tokens live at the top of
    (1 px, 14 % ink) separate rows inside a panel.
 4. **Strong scale contrast.** Few sizes, far apart: a heavy geometric
    headline, small tracked capitals for labels, a neutral text face for
-   reading, and a monospaced face for every number.
+   reading. Numbers are set in the geometric display face with tabular
+   lining figures, so they belong to the same system as the headings.
 5. **Asymmetric grid.** An 8 px base unit. The main view leads with the one
    thing that matters (the value, the chart); bookkeeping such as library
    statistics goes to the foot of the page.
@@ -59,7 +60,8 @@ result gets an ink ring.
 | Display (h1, wordmark) | Montserrat 800 | uppercase, tight |
 | Section titles, labels | Montserrat 700 | uppercase, 0.08 to 0.12 em tracking |
 | Reading text | Inter | 14 px / 1.45 |
-| Numbers, ids, code | IBM Plex Mono | tabular figures |
+| Numbers and values | Montserrat 600 (700 for the headline value) | tabular lining figures; values typeset by KaTeX in this face |
+| Ids, tags, code | IBM Plex Mono | |
 
 All faces are vendored under `app/fonts/` (SIL Open Font License), because
 the page opens over `file://` with no network. Montserrat comes from TeX Live;
@@ -76,5 +78,11 @@ it covers Cyrillic, so the Russian captions in papers render in the same face.
 * **Chip**: 1.5 px border, square. When pressed it fills with ink.
 * **Z–N chart**: square cells. A nucleus with results is outlined in ink;
   the current one fills with the accent colour.
+* **Overview**: title and a preview panel on the left, the chart on the
+  right. Pointing at a nucleus on the chart fills the preview with its
+  families; until then it lists the most recent runs. The rail keeps the
+  small chart only on nucleus and family pages.
+* **Sortable headings**: an arrow after the label; the active one is
+  underlined in the accent colour.
 * **Footer statistics**: one quiet line of counts and a thin status bar at
   the foot of the overview, below everything you read first.

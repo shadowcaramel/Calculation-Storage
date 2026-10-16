@@ -197,6 +197,24 @@ def _hints() -> Dict[str, str]:
     return hints
 
 
+def _label_tex() -> Dict[str, str]:
+    """KaTeX source for labels that carry math (Nmax, ħΩ), keyed by the Unicode label."""
+    found = {label: latex for _key, label, latex, _hint in _stat_fields() if latex}
+    sample = {"nmax_range": "x", "homega_range": "x"}
+    found.update({label: latex for label, latex, _value, _hint in _data_selection_rows(sample) if latex})
+    return found
+
+
+def _axes() -> Dict[str, Dict[str, str]]:
+    """The training-window axes, as the classic site labels them."""
+    from results_schema.labels import axis_latex, axis_unicode
+
+    return {
+        axis: {"latex": axis_latex(axis, wrap=False), "label": axis_unicode(axis)}
+        for axis in ("Nmax", "hOmega")
+    }
+
+
 def _nucleus_coordinates(nucleus: str) -> Optional[Dict[str, int]]:
     try:
         nuclide = parse_nuclide(nucleus)
@@ -299,6 +317,8 @@ def explorer_data(
         "with_papers": paper_links is not None,
         "papers": dict(papers) if papers is not None else None,
         "hints": _hints(),
+        "label_tex": _label_tex(),
+        "axes": _axes(),
         "nuclei": nuclei,
         "figures": figures,
         "rows": rows,

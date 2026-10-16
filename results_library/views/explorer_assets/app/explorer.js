@@ -46,7 +46,7 @@
     p.loose.forEach(function (c) { (CHECKS_BY_RESULT[c.result] = CHECKS_BY_RESULT[c.result] || []).push({ paper: p, material: null, check: c }); });
   });
 
-  var state = { lib: "modern", nuc: null, fam: null, sel: null, paper: null, facets: {}, facetFam: null, xaxis: null, zoom: true };
+  var state = { lib: "modern", nuc: null, fam: null, sel: null, paper: null, facets: {}, facetFam: null, xaxis: null, zoom: true, sort: { key: "date", dir: -1 }, preview: null, previewLib: null };
 
   // ---- helpers ---------------------------------------------------------
 
@@ -107,6 +107,13 @@
   }
   function stateTex(r) { return tex(r.state_latex, r.state_label); }
   function obsTex(r) { return tex(r.observable_latex, r.observable_label); }
+  // Values are typeset by KaTeX in the display face with tabular figures
+  // (.fig, see DESIGN.md), so the asymmetric errors stack properly.
+  function valTex(r) { return '<span class="fig">' + tex(r.value_latex, r.value_label) + "</span>"; }
+  var AXES = CAT.axes || { Nmax: { latex: "N_{\\max}", label: "N\u2098\u2090\u2093" }, hOmega: { latex: "\\hbar\\Omega", label: "\u0127\u03a9" } };
+  function nmaxTex() { return tex(AXES.Nmax.latex, AXES.Nmax.label); }
+  function hwTex() { return tex(AXES.hOmega.latex, AXES.hOmega.label); }
+  function labelTex(label) { var t = (CAT.label_tex || {})[label]; return t ? tex(t, label) : esc(label); }
 
   // ---- geometric marks ---------------------------------------------------
   // Series i: colour --s(i+1), shape i mod 4 (circle, square, triangle,
@@ -196,7 +203,13 @@
     for (var v = Math.ceil(a / step) * step; v <= b; v += step) ticks.push(v);
     return { ticks: ticks, step: step };
   }
-  function tickLabel(v, step) { return v.toFixed(Math.min(Math.max(0, -Math.floor(Math.log10(step))), 5)); }
+  function tickLabel(v, step) { return v.toFixed(Math.min(Math.max(0, -Math.floor(Math.log10(step))), 5)).replace("-", "\u2212"); }
+  // "E_abs" as SVG text, with the subscript lowered (KaTeX cannot draw in SVG).
+  function svgLabel(text) {
+    var m = /^([^_]*)_([A-Za-z0-9]+)(.*)$/.exec(String(text || ""));
+    if (!m) return esc(text);
+    return esc(m[1]) + '<tspan font-size="8.5" dy="3">' + esc(m[2]) + '</tspan><tspan dy="-3">' + esc(m[3]) + "</tspan>";
+  }
 
   function nucleiMap(lib, big) {
     var counts = countBy(libRows(lib), function (r) { return r.nucleus; });
@@ -211,13 +224,15 @@
     for (var n = 1; n <= maxN; n++) s += '<text class="nz-axis" x="' + (pad + (n - 1) * cell + cell / 2) + '" y="' + (top + maxZ * cell + 14) + '" text-anchor="middle">' + n + "</text>";
     if (big) {
       s += '<text class="nz-title" x="' + (pad + maxN * cell) + '" y="' + (top + maxZ * cell + 30) + '" text-anchor="end">N, NEUTRONS →</text>';
-      s += '<text class="nz-title" transform="translate(9 ' + (top + 2) + ') rotate(90)">Z, PROTONS →</text>';
+      // Read bottom to top, so the arrow points up the Z axis.
+      s += '<text class="nz-title" transform="translate(12 ' + (top + 2) + ') rotate(-90)" text-anchor="end">Z, PROTONS →</text>';
     }
     cells.forEach(function (name) {
       var c = CAT.nuclei[name].chart, x = pad + (c.N - 1) * cell, y = top + (maxZ - c.Z) * cell;
       var has = !!counts[name], cur = state.nuc === name && state.lib === lib;
-      var open = has ? '<a href="' + route(lib, "n", name) + '" aria-label="' + esc(name) + ", " + plural(counts[name], "result", "results") + '">' : "";
-      s += open + '<g class="nz-cell' + (has ? " has" : " empty") + (cur ? " cur" : "") + '">';
+      var pv = big && has && state.preview === name && state.previewLib === lib;
+      var open = has ? '<a href="' + route(lib, "n", name) + '" data-nuc="' + esc(name) + '" aria-label="' + esc(name) + ", " + plural(counts[name], "result", "results") + '">' : "";
+      s += open + '<g class="nz-cell' + (has ? " has" : " empty") + (cur ? " cur" : "") + (pv ? " pv" : "") + '">';
       s += '<rect x="' + (x + 2) + '" y="' + (y + 2) + '" width="' + (cell - 4) + '" height="' + (cell - 4) + '"/>';
       if (has && !cur) s += '<rect class="flag" x="' + (x + 2) + '" y="' + (y + 2) + '" width="' + (big ? 8 : 5) + '" height="' + (big ? 8 : 5) + '"/>';
       s += '<text x="' + (x + cell / 2) + '" y="' + (y + cell * (big ? 0.5 : 0.64)) + '" text-anchor="middle" font-size="' + (big ? 16 : 10.5) + '" font-weight="700">';
@@ -234,7 +249,7 @@
     if (state.lib === "papers") return renderPaperRail();
     var fams = families(state.lib), byNuc = {};
     fams.forEach(function (f) { (byNuc[f.nucleus] = byNuc[f.nucleus] || []).push(f); });
-    var h = '<div class="eyebrow">Nuclei · Z against N</div><div class="nzmap">' + nucleiMap(state.lib, false) + "</div>";
+    var h = state.nuc ? '<div class="eyebrow">Nuclei · Z against N</div><div class="nzmap">' + nucleiMap(state.lib, false) + "</div>" : "";
     h += '<div class="eyebrow">' + libName(state.lib) + ' families</div><nav class="tree" aria-label="Families">';
     h += '<a href="' + route(state.lib) + '"' + (!state.nuc ? ' aria-current="page"' : "") + ">Overview</a>";
     Object.keys(byNuc).sort(nucOrder).forEach(function (n) {
@@ -286,23 +301,65 @@
     return '<a class="famrow" href="' + route(state.lib, "f", f.key) + '">' +
       '<div><div class="obs">' + esc(nucInfo(f.nucleus).label) + " " + obsTex(h) + (h.units ? ' <span class="hint">' + esc(units(h.units)) + "</span>" : "") + '</div><div class="meta">' + stateTex(h) + (h.reference_nucleus ? " · vs " + esc(h.reference_nucleus) : "") + "</div></div>" +
       '<div class="chips">' + f.potentials.map(function (p) { return '<span class="tag">' + esc(p) + "</span>"; }).join("") + "</div>" +
-      '<div><div class="val">' + esc(h.value_label) + '</div><div class="meta"><span class="dot st-' + h.status + '"></span> ' + esc(h.selection_set) + " · Nmax " + win(h.nmax) + "</div></div>" +
+      '<div><div class="val">' + valTex(h) + '</div><div class="meta"><span class="dot st-' + h.status + '"></span> ' + esc(h.selection_set) + " · " + nmaxTex() + " " + win(h.nmax) + "</div></div>" +
       "<div>" + strip(f) + "</div>" +
       '<div class="n">' + plural(f.rows.length, "result", "results") + "<br>" + f.ensembles + " ens.</div></a>";
   }
 
+  // One compact family line for the narrow preview column.
+  function previewRow(f, withNucleus) {
+    var h = f.head;
+    return '<a class="prow" href="' + route(state.lib, "f", f.key) + '">' +
+      '<span class="what">' + (withNucleus ? '<b class="nuc">' + esc(nucInfo(f.nucleus).label) + "</b> " : "") + obsTex(h) + ' <span class="hint">' + stateTex(h) + "</span></span>" +
+      '<span class="v">' + valTex(h) + (h.units ? ' <span class="hint">' + esc(units(h.units)) + "</span>" : "") + "</span>" +
+      '<span class="meta"><span class="dot st-' + h.status + '"></span> ' + esc(h.selection_set) + " · " + nmaxTex() + " " + win(h.nmax) + " · " + esc(h.run_date_label) + "</span>" +
+      '<span class="n">' + plural(f.rows.length, "result", "results") + "</span></a>";
+  }
+
+  // The panel beside the chart: the nucleus last pointed at, or the most
+  // recent runs until then.
+  function previewPanel() {
+    var nuc = state.previewLib === state.lib ? state.preview : null;
+    var fams = families(state.lib);
+    if (!nuc) {
+      var recent = fams.slice().sort(function (a, b) { return String(b.latest).localeCompare(String(a.latest)); }).slice(0, 6);
+      return '<div class="panel-h"><h2>Most recent runs</h2><span class="hint">Point at a nucleus on the chart to see its families here.</span></div><div class="prows">' + recent.map(function (f) { return previewRow(f, true); }).join("") + "</div>";
+    }
+    var own = fams.filter(function (f) { return f.nucleus === nuc; });
+    var total = own.reduce(function (a, f) { return a + f.rows.length; }, 0);
+    var o = '<div class="panel-h"><h2 class="nocaps">' + esc(nucInfo(nuc).label) + '</h2><span class="hint">' + plural(own.length, "family", "families") + ", " + plural(total, "result", "results") + '</span><span class="spacer"></span><button type="button" class="btn" data-preview="">Recent runs</button><a class="btn primary" href="' + route(state.lib, "n", nuc) + '">Open</a></div><div class="prows">';
+    var seen = {};
+    own.forEach(function (f) {
+      var k = f.head.state_label;
+      if (!seen[k]) { seen[k] = true; o += '<div class="pstate">' + stateTex(f.head) + "</div>"; }
+      o += previewRow(f, false);
+    });
+    return o + "</div>";
+  }
+  function showPreview(nuc) {
+    if (state.preview === nuc && state.previewLib === state.lib) return;
+    state.preview = nuc; state.previewLib = state.lib;
+    var panel = $("nzprev");
+    if (!panel) return;
+    panel.innerHTML = previewPanel();
+    typeset(panel);
+    document.querySelectorAll("#main .nz-cell").forEach(function (g) {
+      var a = g.parentNode;
+      g.classList.toggle("pv", !!nuc && a && a.getAttribute && a.getAttribute("data-nuc") === nuc);
+    });
+  }
+
   function renderOverview() {
-    var rows = libRows(state.lib), fams = families(state.lib);
+    var rows = libRows(state.lib);
     var lede = state.lib === "legacy"
       ? "Results from the old TensorFlow cluster scripts, kept apart from the current pipeline."
       : "Results from the current ensemble pipeline.";
-    var h = '<div class="stack"><div class="hero"><div class="intro"><div class="eyebrow">Library</div><h1 class="caps" style="margin-top:8px">' + libName(state.lib) + ' library</h1><p class="lede">' + lede + " Pick a nucleus on the chart or in the list.</p>";
+    var h = '<div class="stack"><div class="hero"><div class="lead"><div class="intro"><div class="eyebrow">Library</div><h1 class="caps" style="margin-top:8px">' + libName(state.lib) + ' library</h1><p class="lede">' + lede + " Point at a nucleus on the chart to preview it, or click to open it.</p>";
     var other = state.lib === "legacy" ? "modern" : "legacy";
     h += '<div class="btnrow" style="margin-top:20px"><a class="btn" href="' + route(other) + '">' + libName(other) + " library</a>" + (PAPERS.length ? '<a class="btn" href="#papers">Papers</a>' : "") + "</div></div>";
-    if (!rows.length) return ($("main").innerHTML = h + '</div><p class="empty">No ' + state.lib + " results yet.</p></div>");
-    h += '<div class="panel"><div class="panel-h"><h2>Chart of nuclei</h2><span class="hint">The number in each cell is how many results it has.</span></div><div class="panel-b nzmap">' + nucleiMap(state.lib, true) + "</div></div></div>";
-    var recent = fams.slice().sort(function (a, b) { return String(b.latest).localeCompare(String(a.latest)); }).slice(0, 8);
-    h += '<div class="panel"><div class="panel-h"><h2>Most recent runs</h2></div><div class="fams">' + recent.map(famRow).join("") + "</div></div></div>";
+    if (!rows.length) return ($("main").innerHTML = h + '</div></div><p class="empty">No ' + state.lib + " results yet.</p></div>");
+    h += '<div class="panel preview" id="nzprev">' + previewPanel() + "</div></div>";
+    h += '<div class="panel chart"><div class="panel-h"><h2>Chart of nuclei</h2><span class="hint">The number in each cell is how many results it has.</span></div><div class="panel-b nzmap">' + nucleiMap(state.lib, true) + "</div></div></div></div>";
     $("main").innerHTML = h + libFooter(state.lib);
   }
 
@@ -337,7 +394,7 @@
     });
     return [
       { key: "selection_set", label: "Selection set", vals: sets, get: function (r) { return r.selection_set; } },
-      { key: "nmax_from", label: "Nmax from", vals: uniq(f.rows.map(function (r) { return r.nmax[0]; })).sort(function (a, b) { return a - b; }), get: function (r) { return r.nmax[0]; }, show: num },
+      { key: "nmax_from", label: nmaxTex() + " from", vals: uniq(f.rows.map(function (r) { return r.nmax[0]; })).sort(function (a, b) { return a - b; }), get: function (r) { return r.nmax[0]; }, show: num },
       { key: "potential", label: "Potential", vals: uniq(f.rows.map(function (r) { return r.potential; })), get: function (r) { return r.potential; } },
       { key: "schedule", label: "LR schedule", vals: uniq(f.rows.map(function (r) { return r.lr_schedule_label; })), get: function (r) { return r.lr_schedule_label; } },
       { key: "status", label: "Status", vals: STATUS_ORDER.filter(function (s) { return f.rows.some(function (r) { return r.status === s; }); }), get: function (r) { return r.status; } },
@@ -385,7 +442,7 @@
     }
     var sx = function (v) { return L + (v - x0) / (x1 - x0) * (W - L - R); };
     var sy = function (v) { return Math.max(T - 6, Math.min(H - B + 6, T + (e[1] - v) / (e[1] - e[0]) * (H - T - B))); };
-    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Values against ' + (byDate ? "run date" : "upper Nmax bound") + '">';
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Values against ' + (byDate ? "run date" : "the upper bound of the Nmax window") + '">';
     var yt = niceTicks(e[0], e[1], 5);
     s += '<g class="grid">' + yt.ticks.map(function (v) { return '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + sy(v) + '" y2="' + sy(v) + '"/>'; }).join("") + "</g>";
     s += '<line class="axis" x1="' + L + '" x2="' + L + '" y1="' + T + '" y2="' + (H - B) + '"/><line class="axis" x1="' + L + '" x2="' + (W - R) + '" y1="' + (H - B) + '" y2="' + (H - B) + '"/><g class="ax">';
@@ -402,8 +459,8 @@
       s += xt.ticks.map(function (v) { return '<line x1="' + sx(v) + '" x2="' + sx(v) + '" y1="' + (H - B) + '" y2="' + (H - B + 5) + '" stroke="var(--ink)" stroke-width="2"/><text x="' + sx(v) + '" y="' + (H - B + 19) + '" text-anchor="middle">' + v + "</text>"; }).join("");
     }
     s += "</g>";
-    s += '<text class="lab" x="' + ((L + W - R) / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + (byDate ? "Run date" : "Upper Nmax of the training window") + "</text>";
-    s += '<text class="lab" transform="translate(14 ' + ((T + H - B) / 2) + ') rotate(-90)" text-anchor="middle">' + esc(f.head.observable_label) + (f.head.units ? " (" + esc(units(f.head.units)) + ")" : "") + "</text>";
+    s += '<text class="lab" x="' + ((L + W - R) / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + (byDate ? "Run date" : 'Upper <tspan font-style="italic">N</tspan><tspan font-size="8.5" dy="3">max</tspan><tspan dy="-3"> of the training window</tspan>') + "</text>";
+    s += '<text class="lab" transform="translate(14 ' + ((T + H - B) / 2) + ') rotate(-90)" text-anchor="middle">' + svgLabel(f.head.observable_label + (f.head.units ? " (" + units(f.head.units) + ")" : "")) + "</text>";
     pts.forEach(function (r) {
       var i = sets.indexOf(r.selection_set), off = sets.length > 1 ? (i - (sets.length - 1) / 2) * 6 : 0;
       var x = sx(xv(r)) + off, y = sy(r.median), col = seriesColor(i);
@@ -429,7 +486,7 @@
   function renderFamily() {
     var f = family(state.lib, state.fam);
     if (!f) return ($("main").innerHTML = '<p class="empty">That family is not in the ' + state.lib + ' library. <a href="' + route(state.lib) + '">Back to the overview</a>.</p>');
-    if (state.facetFam !== f.key) { state.facets = {}; state.facetFam = f.key; state.xaxis = null; }
+    if (state.facetFam !== f.key) { state.facets = {}; state.facetFam = f.key; state.xaxis = null; state.sort = { key: "date", dir: -1 }; }
     var defs = facetDefs(f), sets = defs[0].vals;
     var rows = f.rows.filter(function (r) { return passes(r, defs); });
     var xmode = state.xaxis || (uniq(f.rows.map(function (r) { return r.nmax[1]; })).length > 1 ? "nmax" : "date");
@@ -438,10 +495,10 @@
     var o = '<div class="stack"><div><div class="crumbs"><a href="' + route(state.lib) + '">' + libName(state.lib) + '</a><span>/</span><a href="' + route(state.lib, "n", f.nucleus) + '">' + esc(label) + "</a><span>/</span><span>" + obsTex(h) + "</span></div>";
     o += "<h1>" + esc(label) + " " + stateTex(h) + " " + obsTex(h) + "</h1></div>";
 
-    o += '<div class="panel"><div class="headline"><div class="bar"></div><div class="body-h"><div class="eyebrow">Headline value</div><div class="bigval" style="margin-top:10px">' + esc(h.value_label) + "<small>" + esc(units(h.units)) + '</small></div><p class="rule" style="margin-top:10px"><span class="dot st-' + h.status + '"></span> ' + esc(h.status) + " · " + esc(h.selection_set) + " · Nmax " + win(h.nmax) + (h.potential ? " · " + esc(h.potential) : "") + " · " + esc(h.run_date_label) + '</p></div><div class="act"><a class="btn primary" href="' + route(state.lib, "r", h.id) + '">Open</a></div></div>';
+    o += '<div class="panel"><div class="headline"><div class="bar"></div><div class="body-h"><div class="eyebrow">Headline value</div><div class="bigval" style="margin-top:10px">' + valTex(h) + "<small>" + esc(units(h.units)) + '</small></div><p class="rule" style="margin-top:10px"><span class="dot st-' + h.status + '"></span> ' + esc(h.status) + " · " + esc(h.selection_set) + " · " + nmaxTex() + " " + win(h.nmax) + (h.potential ? " · " + esc(h.potential) : "") + " · " + esc(h.run_date_label) + '</p></div><div class="act"><a class="btn primary" href="' + route(state.lib, "r", h.id) + '">Open</a></div></div>';
     o += '<div class="panel-b" style="border-top:1px solid var(--hair)"><p class="rule">' + (h.pinned ? "Pinned with <code>headline = true</code> in annotations.toml." : "Picked by rule: published first, then the selection set in this order: " + CAT.headline_order.map(esc).join(" › ") + ", then the newest run. Add <code>headline = true</code> to a result in annotations.toml to pin a different one.") + "</p></div></div>";
 
-    o += '<div class="panel"><div class="panel-h"><h2>Scan</h2><div class="chips"><button type="button" class="chip" data-x="nmax" aria-pressed="' + (xmode === "nmax") + '">by Nmax window</button><button type="button" class="chip" data-x="date" aria-pressed="' + (xmode === "date") + '">by run date</button></div><span class="hint">Colour and shape are the selection set; the yellow disc marks the headline. Bars are the asymmetric uncertainty. Click a point to open it.</span></div><div class="panel-b plot">' + scanPlot(f, rows, sets, xmode) + "</div></div>";
+    o += '<div class="panel"><div class="panel-h"><h2>Scan</h2><div class="chips"><button type="button" class="chip" data-x="nmax" aria-pressed="' + (xmode === "nmax") + '">by ' + nmaxTex() + ' window</button><button type="button" class="chip" data-x="date" aria-pressed="' + (xmode === "date") + '">by run date</button></div><span class="hint">Colour and shape are the selection set; the yellow disc marks the headline. Bars are the asymmetric uncertainty. Click a point to open it.</span></div><div class="panel-b plot">' + scanPlot(f, rows, sets, xmode) + "</div></div>";
 
     var groups = defs.filter(function (d) { return d.vals.length > 1 || (d.key === "papers" && d.vals.length); });
     if (groups.length) {
@@ -459,21 +516,20 @@
 
     var byEns = {}, ensOrder = [];
     rows.forEach(function (r) { if (!byEns[r.ensemble]) { byEns[r.ensemble] = []; ensOrder.push(r.ensemble); } byEns[r.ensemble].push(r); });
-    var ens = ensOrder.map(function (k) { return byEns[k]; });
-    ens.sort(function (a, b) { return ((a[0].nmax[0] || 0) - (b[0].nmax[0] || 0)) || ((a[0].nmax[1] || 0) - (b[0].nmax[1] || 0)) || String(b[0].run_datetime).localeCompare(String(a[0].run_datetime)); });
+    var ens = sortEnsembles(ensOrder.map(function (k) { return byEns[k]; }));
     var shown = sets.filter(function (s) { return rows.some(function (r) { return r.selection_set === s; }); });
     var showPot = f.potentials.length > 1;
     var showLr = uniq(f.rows.map(function (r) { return r.lr_schedule_label; })).length > 1;
-    o += '<div class="panel"><div class="panel-h"><h2>Ensembles</h2><span class="hint">One row per trained ensemble, one column per selection set: ' + rows.length + " results in " + ens.length + ' rows. The value underlined in yellow is the family headline.</span></div><div class="tablewrap"><table class="pivot"><thead><tr><th>Run</th><th>Nmax</th><th>ħΩ</th>' + (showPot ? "<th>Potential</th>" : "") + (showLr ? "<th>LR schedule</th>" : "");
-    o += shown.map(function (s) { return "<th>" + glyph(sets.indexOf(s)) + esc(s) + "</th>"; }).join("") + "<th>Used in</th></tr></thead><tbody>";
+    o += '<div class="panel"><div class="panel-h"><h2>Ensembles</h2><span class="hint">One row per trained ensemble, one column per selection set: ' + rows.length + " results in " + ens.length + ' rows. The value underlined in yellow is the family headline. Click a column heading to sort.</span></div><div class="tablewrap"><table class="pivot"><thead><tr>' + sortTh("date", "Run") + sortTh("nmax", nmaxTex()) + sortTh("homega", hwTex()) + (showPot ? "<th>Potential</th>" : "") + (showLr ? "<th>LR schedule</th>" : "");
+    o += shown.map(function (s) { return sortTh("set:" + s, glyph(sets.indexOf(s)) + esc(s)); }).join("") + "<th>Used in</th></tr></thead><tbody>";
     ens.forEach(function (g) {
       var r0 = g[0], used = [];
       g.forEach(function (r) { r.papers.forEach(function (p) { if (!used.some(function (u) { return u.id === p.id; })) used.push(p); }); });
-      o += '<tr><td class="mono">' + esc(r0.run_date_label) + '</td><td class="mono">' + win(r0.nmax) + '</td><td class="mono">' + win(r0.homega) + "</td>" + (showPot ? "<td>" + esc(r0.potential) + "</td>" : "") + (showLr ? '<td title="' + esc(r0.lr_schedule_detail || "") + '">' + esc(r0.lr_schedule_label || "–") + "</td>" : "");
+      o += '<tr><td class="num">' + esc(r0.run_date_label) + '</td><td class="num">' + win(r0.nmax) + '</td><td class="num">' + win(r0.homega) + "</td>" + (showPot ? "<td>" + esc(r0.potential) + "</td>" : "") + (showLr ? '<td title="' + esc(r0.lr_schedule_detail || "") + '">' + esc(r0.lr_schedule_label || "–") + "</td>" : "");
       shown.forEach(function (s) {
         var cell = g.filter(function (r) { return r.selection_set === s; });
         o += "<td>" + (cell.length ? cell.map(function (r) {
-          return '<button type="button" class="cell' + (r.headline ? " head" : "") + (state.sel === r.id ? " sel" : "") + '" data-open="' + esc(r.id) + '" title="' + esc(r.status) + '"><span class="dot st-' + r.status + '"></span>' + esc(r.value_label) + "</button>";
+          return '<button type="button" class="cell' + (r.headline ? " head" : "") + (state.sel === r.id ? " sel" : "") + '" data-open="' + esc(r.id) + '" title="' + esc(r.status) + '"><span class="dot st-' + r.status + '"></span>' + valTex(r) + "</button>";
         }).join("<br>") : '<span class="hint">–</span>') + "</td>";
       });
       o += '<td><span class="chips">' + used.map(paperChip).join("") + "</span></td></tr>";
@@ -484,9 +540,46 @@
     if (figs.length) o += '<div class="panel"><div class="panel-h"><h2>Comparison figures</h2></div><div class="panel-b thumbs wide">' + figs.map(figureCard).join("") + "</div></div>";
 
     var other = state.lib === "legacy" ? "modern" : "legacy", twin = family(other, f.key);
-    if (twin) o += '<div class="panel"><div class="panel-b"><b>Also computed with ' + other + ' code.</b> <span class="hint">' + plural(twin.rows.length, "result", "results") + ", headline " + esc(twin.head.value_label) + '.</span> <a class="btn" href="' + route(other, "f", f.key) + '">Open in ' + other + "</a></div></div>";
+    if (twin) o += '<div class="panel"><div class="panel-b"><b>Also computed with ' + other + ' code.</b> <span class="hint">' + plural(twin.rows.length, "result", "results") + ", headline " + valTex(twin.head) + '.</span> <a class="btn" href="' + route(other, "f", f.key) + '">Open in ' + other + "</a></div></div>";
 
     $("main").innerHTML = o + "</div>";
+  }
+
+  // Ensemble rows sort like the classic tables: newest run first by default;
+  // a heading click sorts ascending, a second click descending. Nmax and ħΩ
+  // sort by the upper bound of the window, then the lower one; a selection-set
+  // column sorts by its value. Blanks go last, and ties fall back to the run
+  // date (newest first), then Nmax, then ħΩ.
+  function ensKey(g, key) {
+    var r0 = g[0];
+    if (key === "date") return [r0.run_datetime || null];
+    if (key === "nmax") return [r0.nmax[1], r0.nmax[0]];
+    if (key === "homega") return [r0.homega[1], r0.homega[0]];
+    var hit = g.filter(function (r) { return r.selection_set === key.slice(4); })[0];
+    return [hit ? hit.median : null];
+  }
+  function compareKeys(a, b, dir) {
+    for (var i = 0; i < a.length; i++) {
+      var x = a[i], y = b[i];
+      if (x === y) continue;
+      if (x == null || x === "") return 1;
+      if (y == null || y === "") return -1;
+      return (x < y ? -1 : 1) * dir;
+    }
+    return 0;
+  }
+  function sortEnsembles(ens) {
+    var key = state.sort.key, dir = state.sort.dir;
+    var rest = [["date", -1], ["nmax", 1], ["homega", 1]].filter(function (k) { return k[0] !== key; });
+    return ens.slice().sort(function (a, b) {
+      var c = compareKeys(ensKey(a, key), ensKey(b, key), dir);
+      for (var i = 0; !c && i < rest.length; i++) c = compareKeys(ensKey(a, rest[i][0]), ensKey(b, rest[i][0]), rest[i][1]);
+      return c;
+    });
+  }
+  function sortTh(key, label) {
+    var on = state.sort.key === key, dir = on ? state.sort.dir : 0;
+    return '<th aria-sort="' + (dir > 0 ? "ascending" : dir < 0 ? "descending" : "none") + '"><button type="button" class="sort' + (on ? " on" : "") + '" data-sort="' + esc(key) + '">' + label + '<span class="arr" aria-hidden="true">' + (dir > 0 ? "↑" : dir < 0 ? "↓" : "↕") + "</span></button></th>";
   }
 
   function figureCard(fig) {
@@ -563,9 +656,9 @@
       m.rows.forEach(function (row, ri) {
         o += "<tr>" + row.map(function (cell) {
           var body = tex(cell.latex, cell.text);
-          if (!cell.result) return '<td class="mono">' + body + "</td>";
+          if (!cell.result) return "<td>" + body + "</td>";
           var st = checkState(m, cell.result, ri);
-          return '<td class="mono linked st-' + st + (state.sel === cell.result ? " sel" : "") + '"><button type="button" data-open="' + esc(cell.result) + '" title="' + esc(st) + " · " + esc(cell.result) + '">' + body + "</button></td>";
+          return '<td class="linked st-' + st + (state.sel === cell.result ? " sel" : "") + '"><button type="button" data-open="' + esc(cell.result) + '" title="' + esc(st) + " · " + esc(cell.result) + '">' + body + "</button></td>";
         }).join("") + "</tr>";
       });
       o += "</tbody></table></div>";
@@ -576,7 +669,7 @@
       var summary = Object.keys(c).map(function (k) { return c[k] + " " + k; }).join(" · ");
       o += '<div class="panel-b"><details' + (bad ? " open" : "") + "><summary>Linked results · " + esc(summary) + '</summary><div class="tablewrap" style="margin-top:8px"><table class="pivot"><thead><tr><th>Number</th><th>Printed</th><th>Stored</th><th>Check</th><th>Note</th></tr></thead><tbody>';
       m.checks.forEach(function (x) {
-        o += '<tr><td><button type="button" class="cell" data-open="' + esc(x.result) + '">' + esc(x.label) + '</button></td><td class="mono">' + esc(x.printed || "–") + '</td><td class="mono">' + esc(x.stored || "–") + '</td><td><span class="verdict st-' + esc(x.state) + '">' + esc(x.state === "nocell" ? "no cell" : x.state) + "</span></td><td class=\"hint\">" + esc(x.note) + "</td></tr>";
+        o += '<tr><td><button type="button" class="cell" data-open="' + esc(x.result) + '">' + esc(x.label) + '</button></td><td class="num">' + esc(x.printed || "–") + '</td><td class="num">' + esc(x.stored || "–") + '</td><td><span class="verdict st-' + esc(x.state) + '">' + esc(x.state === "nocell" ? "no cell" : x.state) + "</span></td><td class=\"hint\">" + esc(x.note) + "</td></tr>";
       });
       o += "</tbody></table></div></details></div>";
     }
@@ -622,23 +715,23 @@
     var siblings = ROWS.filter(function (x) { return x.ensemble === r.ensemble && x.lineage === r.lineage && x.id !== r.id; });
     var o = '<button type="button" class="close" data-close="1" aria-label="Close">×</button><div class="eyebrow">' + libName(r.lineage) + " result" + (r.headline ? " · family headline" : "") + "</div>";
     o += "<h2>" + esc(r.title || "") + (r.title ? "" : esc(nucInfo(r.nucleus).label) + " " + stateTex(r) + " " + obsTex(r)) + "</h2>";
-    o += '<div class="bigval" style="font-size:28px;margin:14px 0 8px">' + esc(r.value_label) + "<small>" + esc(units(r.units)) + "</small></div>";
+    o += '<div class="bigval" style="font-size:28px;margin:14px 0 8px">' + valTex(r) + "<small>" + esc(units(r.units)) + "</small></div>";
     o += '<p class="rule"><span class="dot st-' + r.status + '"></span> ' + esc(r.status) + "</p>";
     o += '<div class="btnrow" style="margin-top:14px">' + (state.lib === "papers" ? '<a class="btn primary" href="' + route(r.lineage, "r", r.id) + '">Open family</a>' : "") + '<button type="button" class="btn" data-copy="latex">Copy LaTeX</button><button type="button" class="btn" data-copy="tsv">Copy TSV</button><button type="button" class="btn" data-copy="annotation">Copy annotation</button></div>';
 
-    o += '<div class="sec"><dl class="kv"><dt>Run</dt><dd class="mono">' + esc(r.run_date_label) + "</dd><dt>Selection set</dt><dd>" + esc(r.selection_set) + "</dd>" + (r.potential ? "<dt>Potential</dt><dd>" + esc(r.potential) + "</dd>" : "") + (r.lr_schedule_detail || r.lr_schedule_label ? "<dt>LR schedule</dt><dd>" + esc(r.lr_schedule_detail || r.lr_schedule_label) + '<span class="hint">Not part of the variant hash, so runs that differ only here share it.</span></dd>' : "");
-    r.selection.forEach(function (item) { o += "<dt>" + esc(item[0]) + "</dt><dd>" + esc(item[1]) + hint(item[0]) + "</dd>"; });
+    o += '<div class="sec"><dl class="kv"><dt>Run</dt><dd class="num">' + esc(r.run_date_label) + "</dd><dt>Selection set</dt><dd>" + esc(r.selection_set) + "</dd>" + (r.potential ? "<dt>Potential</dt><dd>" + esc(r.potential) + "</dd>" : "") + (r.lr_schedule_detail || r.lr_schedule_label ? "<dt>LR schedule</dt><dd>" + esc(r.lr_schedule_detail || r.lr_schedule_label) + '<span class="hint">Not part of the variant hash, so runs that differ only here share it.</span></dd>' : "");
+    r.selection.forEach(function (item) { o += "<dt>" + labelTex(item[0]) + '</dt><dd class="num">' + esc(item[1]) + hint(item[0]) + "</dd>"; });
     if (r.papers.length) o += "<dt>Published in</dt><dd><span class=\"chips\">" + r.papers.map(paperChip).join("") + "</span></dd>";
     o += "</dl></div>";
 
     var printed = CHECKS_BY_RESULT[r.id] || [];
     if (printed.length) {
       o += '<div class="sec"><div class="eyebrow">Printed in papers</div><table class="pivot"><tbody>' + printed.map(function (x) {
-        return '<tr><td style="white-space:normal"><a href="' + paperRoute(x.paper.id) + '">' + esc(x.material ? x.material.title : x.paper.title) + '</a><div class="hint">' + esc(x.check.label) + (x.check.note ? " · " + esc(x.check.note) : "") + '</div></td><td class="mono">' + esc(x.check.printed || "") + '</td><td><span class="verdict st-' + esc(x.check.state) + '">' + esc(x.check.state === "nocell" ? "no cell" : x.check.state) + "</span></td></tr>";
+        return '<tr><td style="white-space:normal"><a href="' + paperRoute(x.paper.id) + '">' + esc(x.material ? x.material.title : x.paper.title) + '</a><div class="hint">' + esc(x.check.label) + (x.check.note ? " · " + esc(x.check.note) : "") + '</div></td><td class="num">' + esc(x.check.printed || "") + '</td><td><span class="verdict st-' + esc(x.check.state) + '">' + esc(x.check.state === "nocell" ? "no cell" : x.check.state) + "</span></td></tr>";
       }).join("") + "</tbody></table></div>";
     }
 
-    if (siblings.length) o += '<div class="sec"><div class="eyebrow">Same ensemble, other selection sets</div><div class="chips">' + siblings.map(function (x) { return '<button type="button" class="chip" data-open="' + esc(x.id) + '">' + esc(x.selection_set) + ' <span class="c">' + esc(x.value_label) + "</span></button>"; }).join("") + "</div></div>";
+    if (siblings.length) o += '<div class="sec"><div class="eyebrow">Same ensemble, other selection sets</div><div class="chips">' + siblings.map(function (x) { return '<button type="button" class="chip" data-open="' + esc(x.id) + '">' + esc(x.selection_set) + ' <span class="c">' + valTex(x) + "</span></button>"; }).join("") + "</div></div>";
 
     if (r.plots.length) {
       o += '<div class="sec"><div class="eyebrow">Plots</div><div class="thumbs">' + r.plots.map(function (p, i) {
@@ -654,7 +747,7 @@
     var figs = CAT.figures.filter(function (fig) { return fig.results.indexOf(r.id) >= 0; });
     if (figs.length) o += '<div class="sec"><div class="eyebrow">Comparison figures</div><div class="thumbs">' + figs.map(figureCard).join("") + "</div></div>";
 
-    o += '<div class="sec"><details><summary>Value statistics</summary><dl class="kv" style="margin-top:8px">' + r.stats.map(function (s) { return "<dt>" + esc(s[0]) + '</dt><dd class="mono">' + esc(s[1]) + hint(s[0]) + "</dd>"; }).join("") + "</dl></details></div>";
+    o += '<div class="sec"><details><summary>Value statistics</summary><dl class="kv" style="margin-top:8px">' + r.stats.map(function (s) { return "<dt>" + labelTex(s[0]) + '</dt><dd class="num">' + esc(s[1]) + hint(s[0]) + "</dd>"; }).join("") + "</dl></details></div>";
     o += '<div class="sec"><details><summary>How it was produced</summary><dl class="kv" style="margin-top:8px">' + r.provenance.map(function (p) { return "<dt>" + esc(p[0]) + "</dt><dd>" + (p[2] ? '<a href="' + href(p[2], r) + '">' + esc(p[1]) + "</a>" : esc(p[1])) + hint(p[0]) + "</dd>"; }).join("") + "</dl></details></div>";
     o += '<div class="sec"><div class="eyebrow">Files</div><ul class="files">' + r.files.map(function (file) { return '<li><a href="' + href(file.href, r) + '">' + esc(file.name) + "</a>" + (file.label ? ' <span class="hint">' + esc(file.label) + "</span>" : "") + "</li>"; }).join("") + "</ul></div>";
     o += '<div class="sec"><div class="eyebrow">Result id</div><div class="id">' + esc(r.id) + "</div></div>";
@@ -810,7 +903,13 @@
       if (at >= 0) on.splice(at, 1); else on.push(value);
       redrawFamily(); return;
     }
+    if (t.hasAttribute("data-preview")) { showPreview(t.getAttribute("data-preview") || null); return; }
     if (t.hasAttribute("data-reset")) { state.facets = {}; redrawFamily(); return; }
+    if (t.hasAttribute("data-sort")) {
+      var key = t.getAttribute("data-sort");
+      state.sort = state.sort.key === key ? { key: key, dir: -state.sort.dir } : { key: key, dir: 1 };
+      redrawFamily(); return;
+    }
     if (t.hasAttribute("data-x")) { state.xaxis = t.getAttribute("data-x"); redrawFamily(); return; }
     if (t.hasAttribute("data-zoom")) { state.zoom = t.getAttribute("data-zoom") === "on"; redrawFamily(); }
   });
@@ -830,12 +929,23 @@
     }
   });
 
-  var tip = $("tip");
+  function previewFrom(event) {
+    var a = event.target.closest && event.target.closest("#main .hero [data-nuc]");
+    if (a) showPreview(a.getAttribute("data-nuc"));
+  }
+  document.addEventListener("mouseover", previewFrom);
+  document.addEventListener("focusin", previewFrom);
+
+  var tip = $("tip"), tipFor = null;
   document.addEventListener("mousemove", function (event) {
     var p = event.target.closest && event.target.closest(".pt");
-    if (!p) { tip.hidden = true; return; }
+    if (!p) { tip.hidden = true; tipFor = null; return; }
     var r = BY_ID[p.getAttribute("data-id")];
-    tip.innerHTML = esc(r.value_label) + "<br>" + esc(r.selection_set) + "<br>Nmax " + win(r.nmax) + " · ħΩ " + win(r.homega) + (r.lr_schedule_label ? "<br>" + esc(r.lr_schedule_label) : "") + "<br>" + esc(r.run_date_label) + " · " + esc(r.status);
+    if (tipFor !== r.id) {
+      tipFor = r.id;
+      tip.innerHTML = '<b class="v">' + valTex(r) + "</b><br>" + esc(r.selection_set) + "<br>" + nmaxTex() + " " + win(r.nmax) + " · " + hwTex() + " " + win(r.homega) + (r.lr_schedule_label ? "<br>" + esc(r.lr_schedule_label) : "") + "<br>" + esc(r.run_date_label) + " · " + esc(r.status);
+      typeset(tip);
+    }
     tip.hidden = false;
     tip.style.left = Math.min(event.clientX + 14, window.innerWidth - 370) + "px";
     tip.style.top = event.clientY + 14 + "px";
