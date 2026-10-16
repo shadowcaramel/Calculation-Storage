@@ -50,6 +50,19 @@
 </section>
 {% endif %}
 
+{% if training %}
+<section class="table-block">
+  <h2>Training</h2>
+  <table class="detail">
+    <tbody>
+      {% for label, label_latex, value, hint in training %}
+      <tr><th>{{ tex(label_latex, label) }}{{ help_tip(hint) }}</th><td>{{ value }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
 {% if row.note or row.outcome or row.tags %}
 <section class="notes">
   {% if row.note %}<p><strong>Note.</strong> {{ row.note }}</p>{% endif %}
@@ -137,7 +150,7 @@
 {% if nmax_windows %}
 <section class="table-block">
   <h2>Other Nmax windows</h2>
-  <p class="hint">Same observable, potential, ħΩ window, selection, and filters; only the training Nmax range differs.</p>
+  <p class="hint">Same observable, potential, ħΩ window, selection, filters, and learning-rate schedule; only the training Nmax range differs.</p>
   <table class="results">
     <thead><tr><th>{{ tex(nmax_latex, nmax_label) }}</th><th>Run</th><th>Setup</th><th>Value</th><th>Status</th><th></th></tr></thead>
     <tbody>

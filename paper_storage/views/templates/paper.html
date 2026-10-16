@@ -30,10 +30,10 @@
   {% if material.image_href %}
   <figure>
     <a href="{{ material.image_href }}"><img src="{{ material.image_href }}" alt="{{ material.title }}"></a>
-    <figcaption>{{ material.image_name }}{% if material.file_href %} · <a href="{{ material.file_href }}">PDF</a>{% endif %}{% if material.pdf_page_href %} · <a href="{{ material.pdf_page_href }}">page in the PDF</a>{% endif %}</figcaption>
+    <figcaption>{{ material.image_name }}{% if material.file_href %} · <a href="{{ material.file_href }}">{{ material.file_name }}</a>{% endif %}{% if material.pdf_page_href %} · <a href="{{ material.pdf_page_href }}">page in the PDF</a>{% endif %}</figcaption>
   </figure>
   {% elif material.file_href %}
-  <p><a href="{{ material.file_href }}">{{ material.image_name or "PDF" }}</a></p>
+  <p><a href="{{ material.file_href }}">{{ material.file_name or material.image_name or "file" }}</a></p>
   {% endif %}
   {% if material.rows %}
   {{ grid_table(material) }}

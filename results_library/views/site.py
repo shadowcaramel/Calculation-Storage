@@ -104,7 +104,8 @@ _PROVENANCE_FIELDS = (
 _PROVENANCE_HINTS = {
     "variant_hash": (
         "Fingerprint of the setup (bounds, filters, selection, reference "
-        "convention), not of this run. Identical setups share it."
+        "convention), not of this run. Identical setups share it, whatever "
+        "the learning-rate schedule."
     ),
     "source_files_name": (
         "Content-addressed copies of the collaborator MFDn/NCSM dumps, shared "
@@ -212,7 +213,7 @@ def _row_dict(record: Mapping[str, Any]) -> Dict[str, Any]:
             "observable_label", "observable_slug", "status", "title", "note",
             "outcome", "tags", "selection_set", "config_name", "run_stamp", "id",
             "setup_label", "potential", "run_date_label", "nmax_range",
-            "homega_range", "lineage",
+            "homega_range", "lineage", "lr_schedule_label",
         )
     )
     row["cohort_key"] = _cohort_key(row)
@@ -390,7 +391,25 @@ def _setup_summary(row: Mapping[str, Any]) -> str:
                     parts.append(f"{axis_unicode(column)} [{low}, {high}]")
     if row.get("selection_set"):
         parts.append(f"selection {row['selection_set']}")
+    if row.get("lr_schedule_label"):
+        parts.append(str(row["lr_schedule_label"]))
     return "; ".join(parts)
+
+
+_TRAINING_HINT = (
+    "Learning rate and schedule from the run's config. Not part of the "
+    "variant hash, so runs that differ only here share it."
+)
+
+
+def _training_rows(
+    row: Mapping[str, Any],
+) -> List[tuple[str, Optional[str], str, Optional[str]]]:
+    """``(Unicode label, math label, value, hint)`` for the detail-page table."""
+    detail = _clean(row.get("lr_schedule_detail"))
+    if not detail:
+        return []
+    return [("Learning-rate schedule", None, str(detail), _TRAINING_HINT)]
 
 
 def _bound_signature(
@@ -419,13 +438,18 @@ def _cohort_key(row: Mapping[str, Any]) -> str:
 
 
 def _nmax_scan_key(row: Mapping[str, Any]) -> str:
-    """Nmax-scan siblings: same family, potential, ħΩ, selection, and filters."""
+    """Nmax-scan siblings: same family, potential, ħΩ, selection, filters, and schedule.
+
+    The schedule enters as type and learning rate only, so runs whose schedule
+    parameters were tuned still compare across Nmax windows.
+    """
     return "|".join((
         str(row.get("family") or ""),
         str(row.get("potential") or ""),
         str(row.get("selection_set") or ""),
         str(row.get("filter_criteria") or ""),
         repr(_bound_signature(row, skip=frozenset({"Nmax"}))),
+        str(_clean(row.get("lr_schedule_label")) or ""),
     ))
 
 
@@ -1125,6 +1149,7 @@ class SiteBuilder:
                 if row.get(key) is not None
             ]
             data_selection = _data_selection_rows(row)
+            training = _training_rows(row)
             provenance = []
             for key, label in _PROVENANCE_FIELDS:
                 if key == "source_file_path" and not _extract_is_distinct_dump(row):
@@ -1175,6 +1200,7 @@ class SiteBuilder:
                 artifacts=artifacts,
                 stats=stats,
                 data_selection=data_selection,
+                training=training,
                 provenance=provenance,
                 siblings=sibling_rows if len(sibling_rows) > 1 else [],
                 selection_siblings=_selection_siblings(row, rows),

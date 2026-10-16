@@ -133,7 +133,20 @@ def _bounds_range(row: Mapping[str, Any], column: str) -> Optional[str]:
     return f"[{_format_bound(low)}, {_format_bound(high)}]"
 
 
-def _minimum_filter_from_snapshot(bundle_dir: Path) -> Dict[str, Any]:
+def _read_snapshot(bundle_dir: Path) -> Optional[Dict[str, Any]]:
+    """The bundle's frozen ``config_snapshot.toml``, or ``None`` if absent or unreadable."""
+    path = Path(bundle_dir) / "config_snapshot.toml"
+    if not path.is_file():
+        return None
+    try:
+        with path.open("rb") as handle:
+            return tomllib.load(handle)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        logger.warning("Could not read config snapshot %s: %s", path, exc)
+        return None
+
+
+def _minimum_filter_from_snapshot(data: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
     """Whether the ħΩ-of-energy-minimum cut was applied, from the frozen config.
 
     This is not stored on ``variant`` (that would change result hashes). Every
@@ -148,14 +161,7 @@ def _minimum_filter_from_snapshot(bundle_dir: Path) -> Dict[str, Any]:
         "minimum_filter_group_by": None,
         "minimum_filter_independent_var": None,
     }
-    path = Path(bundle_dir) / "config_snapshot.toml"
-    if not path.is_file():
-        return empty
-    try:
-        with path.open("rb") as handle:
-            data = tomllib.load(handle)
-    except (OSError, tomllib.TOMLDecodeError) as exc:
-        logger.warning("Could not read data-selection snapshot %s: %s", path, exc)
+    if data is None:
         return empty
 
     selecting = ((data.get("preprocessing") or {}).get("data_selecting") or {})
@@ -184,6 +190,33 @@ def _minimum_filter_from_snapshot(bundle_dir: Path) -> Dict[str, Any]:
         "minimum_filter_independent_var": (
             str(filt["independent_var"]) if filt.get("independent_var") else None
         ),
+    }
+
+
+def _training_columns(
+    record: Mapping[str, Any],
+    snapshot: Optional[Mapping[str, Any]],
+    lineage: str,
+) -> Dict[str, Any]:
+    """Learning rate and schedule, from ``training`` or the frozen config.
+
+    Records written before the ``training`` block existed fall back to the
+    bundle's ``config_snapshot.toml``. Legacy bundles never do: their snapshot
+    is this pipeline's config, not how the old scripts trained.
+    """
+    from results_schema.training import lr_schedule_label, training_from_config
+
+    training = record.get("training")
+    if not isinstance(training, Mapping) or not training:
+        training = None
+        if lineage == "modern" and snapshot is not None:
+            training = training_from_config(snapshot)
+    schedule = (training or {}).get("lr_schedule") or {}
+    return {
+        "learning_rate": (training or {}).get("learning_rate"),
+        "lr_schedule": schedule.get("type"),
+        "lr_schedule_label": lr_schedule_label(training),
+        "lr_schedule_detail": lr_schedule_label(training, detailed=True),
     }
 
 
@@ -231,7 +264,15 @@ def _display_labels(record: Dict[str, Any]) -> Dict[str, Any]:
     median = computed.get("median")
     err_low = computed.get("err_low")
     err_high = computed.get("err_high")
-    if median is not None and err_low is not None and err_high is not None:
+    if (
+        computed.get("uncertainty_method") == "std"
+        and median is not None
+        and err_low is not None
+    ):
+        sigma = float(err_low)
+        labels["value_latex"] = f"{float(median):.3f} \\pm {sigma:.3f}"
+        labels["value_label"] = f"{float(median):.3f} \u00b1 {sigma:.3f}"
+    elif median is not None and err_low is not None and err_high is not None:
         labels["value_latex"] = format_value_with_uncertainty(
             float(median), float(err_low), float(err_high)
         )
@@ -340,7 +381,9 @@ def flatten_record(
     )
     row["nmax_range"] = _bounds_range(row, "Nmax")
     row["homega_range"] = _bounds_range(row, "hOmega")
-    row.update(_minimum_filter_from_snapshot(scanned.bundle_dir))
+    snapshot = _read_snapshot(scanned.bundle_dir)
+    row.update(_minimum_filter_from_snapshot(snapshot))
+    row.update(_training_columns(record, snapshot, row["lineage"]))
 
     # Reference
     row["reference_nucleus"] = reference.get("nucleus")

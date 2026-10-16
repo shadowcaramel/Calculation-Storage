@@ -30,6 +30,7 @@ FILES = (
     "slugs.py",
     "labels.py",
     "identity.py",
+    "training.py",
     "models.py",
     "FIELDS.md",
 )

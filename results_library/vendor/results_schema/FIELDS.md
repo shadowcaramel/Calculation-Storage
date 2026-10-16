@@ -38,6 +38,7 @@ Current version: **2**
 | `provenance` | 1 | | table | Where the number came from. |
 | `status` | 1 | | str | `probing` \| `working` \| `published` \| `superseded`. Written as `probing`; promotion happens in `annotations.toml`, which wins on conflict. |
 | `lineage` | 2 | | str | `modern` \| `legacy`. Training-code path, not date and not the physics method. `modern` is the current pipeline; `legacy` is the old TensorFlow cluster scripts (including new runs of that code). Default `modern`. Not on `variant`, so it does not change hashes. Bundle path is `bundles/{lineage}/{id}`. Older records omit the field; readers infer it from the path prefix or default to `modern`. |
+| `training` | 2 | | table | How the ensemble was trained: learning rate and schedule. See below. Not on `variant`, so it does not change hashes. Written for `modern` lineage only. Older records lack it; readers may derive it from the bundle's `config_snapshot.toml`. |
 | `available` | 1 | | list[str] | Which artifact kinds actually exist, so views only offer real downloads. |
 | `artifacts` | 1 | | table | Artifact key to filename, relative to the bundle directory. |
 | `column_labels` | 1 | | table | Display forms for input columns and observables, copied from `[postprocessing.prediction_plots.labels]` at capture. Each entry has `display`, `unicode`, optional `latex` and `unit`. Views use these so HTML shows `ħΩ` rather than `hOmega`. Older records lack this table; the catalog then applies the schema defaults. |
@@ -123,8 +124,21 @@ collide, so the reference feeds both the observable slug and `variant_hash`.
 | `reference_convention` | 1 | | table | Echo of `reference.convention`, so the hash covers it. |
 | `config_name` | 1 | | str | Pipeline configuration name, e.g. `0p2/Nmax=[4,18]_hOmega=[8,50]`. |
 | `potential` | 1 | | str | Nucleon-nucleon interaction of the source data, e.g. `Daejeon16`. Declared in `[identity].potential`; hashed with the rest of this block so two identical extrapolations on different potentials never share a fingerprint. Not an id path segment of its own. Older records lack it. |
-| `variant_hash` | 1 | | str | First 8 hex chars of a SHA-256 over the rest of this block except `cohort_hash`. Identical setups across runs share a hash. In v1 this was also the suffix of the fourth id segment. |
+| `variant_hash` | 1 | | str | First 8 hex chars of a SHA-256 over the rest of this block except `cohort_hash`. Identical setups across runs share a hash. Training settings (`training`) are not hashed. In v1 this was also the suffix of the fourth id segment. |
 | `cohort_hash` | 2 | | str | First 8 hex chars of a SHA-256 over `bounds`, `reference_convention`, `config_name`, and `potential`. Shared by every selection set of the same trained ensemble, so they share a parent folder. The fourth id segment is `{YYYY-MM-DD_HH-MM-SS}_{cohort_hash}`; the fifth is `{selection_set}_{variant_hash}`. |
+
+## `training`
+
+| Field | Since | Retired | Type | Meaning |
+| --- | --- | --- | --- | --- |
+| `learning_rate` | 2 | | float | `[training].learning_rate`: the constant rate, or the initial rate of a schedule. |
+| `lr_schedule` | 2 | | table | `type` is `constant` when `[training.lr_schedule]` is disabled or `type = "none"`, otherwise that `type` (`cosine_decay`, `cosine_decay_warmup`, `cosine_decay_restarts`, `peak_envelope`). The remaining keys are the parameters that type reads, copied from the config (`decay_steps`, `warmup_steps`, `first_decay_steps`, `t_mul`, `m_mul`, `alpha`). A parameter left to the pipeline default is omitted. |
+
+Two runs that differ only in learning-rate schedule share `variant_hash` and
+`cohort_hash`; this block is what tells them apart. It is kept off `variant`
+for the same reason as `lineage`: identical physics setups keep one
+fingerprint across runs. Not written for `legacy` lineage, whose config
+snapshot does not describe how the old scripts trained.
 
 ## `provenance`
 

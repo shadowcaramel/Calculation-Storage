@@ -39,6 +39,7 @@ from results_schema.slugs import (
     state_slug,
     transition_slug,
 )
+from results_schema.training import training_from_config
 
 SCHEMA_VERSION = 2
 
@@ -350,6 +351,23 @@ class Provenance(_Base):
     provenance_check: Optional[Dict[str, Any]] = None
 
 
+class Training(_Base):
+    """How the ensemble was trained: the learning rate and its schedule.
+
+    Not on :class:`Variant`, so it does not change hashes. Runs that differ
+    only in schedule share ``variant_hash`` and are told apart here.
+    """
+
+    learning_rate: Optional[float] = None
+    lr_schedule: Dict[str, Any] = Field(default_factory=dict)
+
+    @classmethod
+    def from_config(cls, config: Mapping[str, Any]) -> Optional["Training"]:
+        """See :func:`results_schema.training.training_from_config`."""
+        data = training_from_config(config)
+        return cls(**data) if data else None
+
+
 # ---------------------------------------------------------------------------
 # The record
 # ---------------------------------------------------------------------------
@@ -368,6 +386,7 @@ class ResultRecord(_Base):
     provenance: Provenance = Field(default_factory=Provenance)
     status: Status = "probing"
     lineage: Lineage = "modern"
+    training: Optional[Training] = None
     available: List[str] = Field(default_factory=list)
     artifacts: Dict[str, str] = Field(default_factory=dict)
     column_labels: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
@@ -410,6 +429,7 @@ class ResultRecord(_Base):
         status: Status = "probing",
         lineage: Lineage = "modern",
         selection_stamp: Optional[str] = None,
+        training: Optional[Training] = None,
     ) -> "ResultRecord":
         """Assemble a record, deriving ``id`` and ``family`` from the identity."""
         path_slug = observable_path_slug or observable.slug
@@ -436,6 +456,7 @@ class ResultRecord(_Base):
             provenance=provenance or Provenance(),
             status=status,
             lineage=normalize_lineage(lineage),  # type: ignore[arg-type]
+            training=training,
             available=list(available or []),
             artifacts=dict(artifacts or {}),
             column_labels={

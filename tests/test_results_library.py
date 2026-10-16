@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
+import tomllib
 from pathlib import Path
 
 import pandas as pd
@@ -47,9 +48,11 @@ from results_schema.models import (  # noqa: E402
     StateRecord,
     StoredFile,
     Subject,
+    Training,
     Variant,
 )
 from results_schema.slugs import bundle_dir_segments  # noqa: E402
+from results_schema.training import training_from_config  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +75,43 @@ def _min_filter_snapshot(*, enabled: bool, selecting: bool = True) -> str:
         'group_by = "Nmax"\n'
         'independent_var = "hOmega"\n'
         'keep_direction = "right"\n'
+    )
+
+
+def _training_snapshot(*, learning_rate: float, schedule: str | None) -> str:
+    """``[training]`` as a diversity-comparison arm writes it; ``None`` is constant."""
+    enabled = "true" if schedule else "false"
+    return (
+        "[training]\n"
+        f"learning_rate = {learning_rate}\n"
+        "[training.lr_schedule]\n"
+        f"enabled = {enabled}\n"
+        f'type = "{schedule or "cosine_decay_restarts"}"\n'
+        'decay_steps = "None"\n'
+        "first_decay_steps = 40000\n"
+        "m_mul = 0.85\n"
+    )
+
+
+#: (run stamp, learning rate, schedule type) for the three comparison arms.
+_ARMS = (
+    ("2026-10-13_clr", 5e-3, "cosine_decay_restarts"),
+    ("2026-10-13_envelope", 5e-3, "peak_envelope"),
+    ("2026-10-13_constant", 1e-4, None),
+)
+
+
+def _arm_record(run_stamp: str, learning_rate: float, schedule: str | None, *, nmax_max: int = 6):
+    snapshot = tomllib.loads(_training_snapshot(learning_rate=learning_rate, schedule=schedule))
+    return _he6_record(
+        run_stamp,
+        variant=Variant(
+            selection_set="final",
+            bounds={"Nmax": [2, nmax_max], "hOmega": [13, 40]},
+            potential="Daejeon16",
+        ),
+        provenance=Provenance(run_dir=f"run_{run_stamp}", source_sheet="0p2"),
+        training=Training(**training_from_config(snapshot)),
     )
 
 
@@ -429,6 +469,36 @@ class TestCatalog:
         assert by_stamp["unprefixed"] == "modern"
         assert by_stamp["prefixed"] == "legacy"
         assert by_stamp["fielded"] == "legacy"
+
+    def test_training_columns_from_record_or_snapshot(self, tmp_path):
+        library = tmp_path / "training"
+        library.mkdir()
+        constant_snapshot = _training_snapshot(learning_rate=1e-4, schedule=None)
+        with_snapshot = {"histogram.png": _PLOT, "config_snapshot.toml": constant_snapshot}
+        _place(library, _arm_record(*_ARMS[1]), files=with_snapshot)
+        _place(library, _he6_record("2026-08-18_older"), files=with_snapshot)
+        _place(library, _he6_record("2026-08-18_legacy", lineage="legacy"), files=with_snapshot)
+        _place(library, _he6_record("2026-08-18_bare"), files={"histogram.png": _PLOT})
+
+        frame, _ = build_catalog(library)
+        rows = {str(row["run_stamp"]): row for _, row in frame.iterrows()}
+
+        # The record's own block wins over its snapshot.
+        envelope = rows["2026-10-13_envelope"]
+        assert envelope["lr_schedule"] == "peak_envelope"
+        assert envelope["learning_rate"] == pytest.approx(5e-3)
+        assert envelope["lr_schedule_label"] == "peak envelope, η₀ = 0.005"
+        assert envelope["lr_schedule_detail"] == (
+            "peak envelope, η₀ = 0.005 (first_decay_steps = 40000, m_mul = 0.85)"
+        )
+        # A modern record written before the block existed reads its snapshot.
+        older = rows["2026-08-18_older"]
+        assert older["lr_schedule"] == "constant"
+        assert older["lr_schedule_label"] == "constant, η = 0.0001"
+        # Legacy snapshots are this pipeline's config, so they are not trusted.
+        for stamp in ("2026-08-18_legacy", "2026-08-18_bare"):
+            assert pd.isna(rows[stamp]["lr_schedule"])
+            assert pd.isna(rows[stamp]["learning_rate"])
 
     def test_rebuild_is_from_scratch(self, library):
         frame, _ = build_catalog(library)
@@ -806,6 +876,47 @@ class TestSite:
         assert "Minimum filter" in skipped
         assert "On — keep" not in skipped
 
+    def test_schedule_arms_are_labelled_and_kept_apart(self, tmp_path):
+        pytest.importorskip("jinja2")
+        from results_library.views.site import build_site
+
+        library = tmp_path / "arms"
+        library.mkdir()
+        for arm in _ARMS:
+            _place(library, _arm_record(*arm), files={"histogram.png": _PLOT})
+        # A second CLR window and a constant one at the same window.
+        clr_wide = _arm_record("2026-10-14_clr_wide", 5e-3, "cosine_decay_restarts", nmax_max=8)
+        constant_wide = _arm_record("2026-10-14_constant_wide", 1e-4, None, nmax_max=8)
+        _place(library, clr_wide, files={"histogram.png": _PLOT})
+        _place(library, constant_wide, files={"histogram.png": _PLOT})
+
+        frame, _ = build_catalog(library)
+        narrow = frame[frame["bounds_Nmax_max"] == 6]
+        # Same physics setup: one variant hash for all three arms.
+        assert narrow["variant_hash"].nunique() == 1
+
+        site = build_site(library, frame)
+        index = (site / "index.html").read_text(encoding="utf-8")
+        assert "LR schedule" in index
+        for label in (
+            "cosine restarts, η₀ = 0.005",
+            "peak envelope, η₀ = 0.005",
+            "constant, η = 0.0001",
+        ):
+            assert label in index
+
+        clr = frame[frame["run_stamp"] == "2026-10-13_clr"].iloc[0]
+        detail = (
+            site / "results" / (clr["id"].replace("/", "__") + ".html")
+        ).read_text(encoding="utf-8")
+        assert "Learning-rate schedule" in detail
+        assert "first_decay_steps = 40000" in detail
+        start = detail.index("Other Nmax windows")
+        windows = detail[start:detail.index("</section>", start)]
+        assert "2026-10-14_clr_wide" in windows
+        assert "2026-10-14_constant_wide" not in windows
+        assert "2026-10-13_constant" not in windows
+
     def test_date_column_sorts_newest_first(self, tmp_path):
         pytest.importorskip("jinja2")
         from results_library.views.site import build_site
@@ -1152,11 +1263,12 @@ class TestExcel:
         assert he6.max_row == 2
         assert he6.cell(row=1, column=1).value == "Date"
         assert he6.cell(row=2, column=4).value == "Daejeon16"
-        assert he6.cell(row=2, column=10).value == "[2, 6]"
-        assert he6.cell(row=2, column=11).value == "[13, 40]"
-        assert he6.cell(row=2, column=13).value == "working"
-        assert he6.cell(row=2, column=14).value == "modern"
-        assert he6.cell(row=2, column=15).value == "Own sample weights."
+        assert he6.cell(row=1, column=5).value == "LR schedule"
+        assert he6.cell(row=2, column=11).value == "[2, 6]"
+        assert he6.cell(row=2, column=12).value == "[13, 40]"
+        assert he6.cell(row=2, column=14).value == "working"
+        assert he6.cell(row=2, column=15).value == "modern"
+        assert he6.cell(row=2, column=16).value == "Own sample weights."
 
         # 16C transition is still probing, so it is not shown.
         assert "16C" not in workbook.sheetnames
@@ -1176,8 +1288,8 @@ class TestExcel:
         frame, _ = build_catalog(library)
         path = build_workbook(library, frame, include_probing=False)
         sheet = load_workbook(path)["6He"]
-        plot_cell = sheet.cell(row=2, column=20)  # Plot
-        details = sheet.cell(row=2, column=23)  # Details
+        plot_cell = sheet.cell(row=2, column=21)  # Plot
+        details = sheet.cell(row=2, column=24)  # Details
         assert plot_cell.hyperlink is not None
         assert "histogram.png" in str(plot_cell.hyperlink.target)
         assert details.hyperlink is not None

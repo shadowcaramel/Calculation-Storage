@@ -34,6 +34,7 @@ _COLUMNS: tuple[tuple[str, str], ...] = (
     ("State", "state_label"),
     ("Observable", "observable_label"),
     ("Potential", "potential"),
+    ("LR schedule", "lr_schedule_label"),
     ("Units", "units"),
     ("median - Q1", "err_low"),
     ("median", "median"),

@@ -222,6 +222,14 @@ element's isotopes. Nmax and ħΩ are the **training windows** `[min, max]`.
 `Nmax_final` (the readout) stays on the detail page, which also shows whether
 the ħΩ-of-energy-minimum filter was on.
 
+The LR schedule column (also in the Excel view) reads the record's `training`
+block, for example `cosine restarts, η₀ = 0.005` or `constant, η = 0.0001`; the
+detail page adds the schedule parameters. Modern records captured before that
+block existed fall back to their `config_snapshot.toml`; legacy records show
+nothing. The schedule is not part of `variant_hash`, so runs that differ only
+in schedule share it. "Other Nmax windows" compares only runs with the same
+schedule type and learning rate.
+
 Selection sets of one trained ensemble share a parent folder:
 
 ```text
