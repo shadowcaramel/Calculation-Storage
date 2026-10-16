@@ -339,6 +339,7 @@
       { key: "selection_set", label: "Selection set", vals: sets, get: function (r) { return r.selection_set; } },
       { key: "nmax_from", label: "Nmax from", vals: uniq(f.rows.map(function (r) { return r.nmax[0]; })).sort(function (a, b) { return a - b; }), get: function (r) { return r.nmax[0]; }, show: num },
       { key: "potential", label: "Potential", vals: uniq(f.rows.map(function (r) { return r.potential; })), get: function (r) { return r.potential; } },
+      { key: "schedule", label: "LR schedule", vals: uniq(f.rows.map(function (r) { return r.lr_schedule_label; })), get: function (r) { return r.lr_schedule_label; } },
       { key: "status", label: "Status", vals: STATUS_ORDER.filter(function (s) { return f.rows.some(function (r) { return r.status === s; }); }), get: function (r) { return r.status; } },
       { key: "tags", label: "Tags", vals: uniq([].concat.apply([], f.rows.map(function (r) { return r.tags; }))).sort(), get: function (r) { return r.tags; } },
       { key: "papers", label: "Used in", vals: uniq([].concat.apply([], f.rows.map(function (r) { return r.papers.map(function (p) { return p.title; }); }))), get: function (r) { return r.papers.map(function (p) { return p.title; }); } }
@@ -462,12 +463,13 @@
     ens.sort(function (a, b) { return ((a[0].nmax[0] || 0) - (b[0].nmax[0] || 0)) || ((a[0].nmax[1] || 0) - (b[0].nmax[1] || 0)) || String(b[0].run_datetime).localeCompare(String(a[0].run_datetime)); });
     var shown = sets.filter(function (s) { return rows.some(function (r) { return r.selection_set === s; }); });
     var showPot = f.potentials.length > 1;
-    o += '<div class="panel"><div class="panel-h"><h2>Ensembles</h2><span class="hint">One row per trained ensemble, one column per selection set: ' + rows.length + " results in " + ens.length + ' rows. The value underlined in yellow is the family headline.</span></div><div class="tablewrap"><table class="pivot"><thead><tr><th>Run</th><th>Nmax</th><th>ħΩ</th>' + (showPot ? "<th>Potential</th>" : "");
+    var showLr = uniq(f.rows.map(function (r) { return r.lr_schedule_label; })).length > 1;
+    o += '<div class="panel"><div class="panel-h"><h2>Ensembles</h2><span class="hint">One row per trained ensemble, one column per selection set: ' + rows.length + " results in " + ens.length + ' rows. The value underlined in yellow is the family headline.</span></div><div class="tablewrap"><table class="pivot"><thead><tr><th>Run</th><th>Nmax</th><th>ħΩ</th>' + (showPot ? "<th>Potential</th>" : "") + (showLr ? "<th>LR schedule</th>" : "");
     o += shown.map(function (s) { return "<th>" + glyph(sets.indexOf(s)) + esc(s) + "</th>"; }).join("") + "<th>Used in</th></tr></thead><tbody>";
     ens.forEach(function (g) {
       var r0 = g[0], used = [];
       g.forEach(function (r) { r.papers.forEach(function (p) { if (!used.some(function (u) { return u.id === p.id; })) used.push(p); }); });
-      o += '<tr><td class="mono">' + esc(r0.run_date_label) + '</td><td class="mono">' + win(r0.nmax) + '</td><td class="mono">' + win(r0.homega) + "</td>" + (showPot ? "<td>" + esc(r0.potential) + "</td>" : "");
+      o += '<tr><td class="mono">' + esc(r0.run_date_label) + '</td><td class="mono">' + win(r0.nmax) + '</td><td class="mono">' + win(r0.homega) + "</td>" + (showPot ? "<td>" + esc(r0.potential) + "</td>" : "") + (showLr ? '<td title="' + esc(r0.lr_schedule_detail || "") + '">' + esc(r0.lr_schedule_label || "–") + "</td>" : "");
       shown.forEach(function (s) {
         var cell = g.filter(function (r) { return r.selection_set === s; });
         o += "<td>" + (cell.length ? cell.map(function (r) {
@@ -624,7 +626,7 @@
     o += '<p class="rule"><span class="dot st-' + r.status + '"></span> ' + esc(r.status) + "</p>";
     o += '<div class="btnrow" style="margin-top:14px">' + (state.lib === "papers" ? '<a class="btn primary" href="' + route(r.lineage, "r", r.id) + '">Open family</a>' : "") + '<button type="button" class="btn" data-copy="latex">Copy LaTeX</button><button type="button" class="btn" data-copy="tsv">Copy TSV</button><button type="button" class="btn" data-copy="annotation">Copy annotation</button></div>';
 
-    o += '<div class="sec"><dl class="kv"><dt>Run</dt><dd class="mono">' + esc(r.run_date_label) + "</dd><dt>Selection set</dt><dd>" + esc(r.selection_set) + "</dd>" + (r.potential ? "<dt>Potential</dt><dd>" + esc(r.potential) + "</dd>" : "");
+    o += '<div class="sec"><dl class="kv"><dt>Run</dt><dd class="mono">' + esc(r.run_date_label) + "</dd><dt>Selection set</dt><dd>" + esc(r.selection_set) + "</dd>" + (r.potential ? "<dt>Potential</dt><dd>" + esc(r.potential) + "</dd>" : "") + (r.lr_schedule_detail || r.lr_schedule_label ? "<dt>LR schedule</dt><dd>" + esc(r.lr_schedule_detail || r.lr_schedule_label) + '<span class="hint">Not part of the variant hash, so runs that differ only here share it.</span></dd>' : "");
     r.selection.forEach(function (item) { o += "<dt>" + esc(item[0]) + "</dt><dd>" + esc(item[1]) + hint(item[0]) + "</dd>"; });
     if (r.papers.length) o += "<dt>Published in</dt><dd><span class=\"chips\">" + r.papers.map(paperChip).join("") + "</span></dd>";
     o += "</dl></div>";
@@ -833,7 +835,7 @@
     var p = event.target.closest && event.target.closest(".pt");
     if (!p) { tip.hidden = true; return; }
     var r = BY_ID[p.getAttribute("data-id")];
-    tip.innerHTML = esc(r.value_label) + "<br>" + esc(r.selection_set) + "<br>Nmax " + win(r.nmax) + " · ħΩ " + win(r.homega) + "<br>" + esc(r.run_date_label) + " · " + esc(r.status);
+    tip.innerHTML = esc(r.value_label) + "<br>" + esc(r.selection_set) + "<br>Nmax " + win(r.nmax) + " · ħΩ " + win(r.homega) + (r.lr_schedule_label ? "<br>" + esc(r.lr_schedule_label) : "") + "<br>" + esc(r.run_date_label) + " · " + esc(r.status);
     tip.hidden = false;
     tip.style.left = Math.min(event.clientX + 14, window.innerWidth - 370) + "px";
     tip.style.top = event.clientY + 14 + "px";

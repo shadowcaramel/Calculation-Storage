@@ -180,6 +180,17 @@ class TestDataFile:
         build_explorer(library, frame)
         assert _read_catalog(library)["papers"] is None
 
+    def test_rows_carry_the_learning_rate_schedule(self, library):
+        frame, _ = build_catalog(library)
+        frame = frame.assign(
+            lr_schedule_label="cosine restarts, η₀ = 0.005",
+            lr_schedule_detail="cosine restarts, η₀ = 0.005 (first_decay_steps = 40000)",
+        )
+        build_explorer(library, frame)
+        row = _read_catalog(library)["rows"][0]
+        assert row["lr_schedule_label"] == "cosine restarts, η₀ = 0.005"
+        assert row["lr_schedule_detail"].endswith("(first_decay_steps = 40000)")
+
     def test_nmax_windows_are_integers(self, library):
         frame, _ = build_catalog(library)
         build_explorer(library, frame)

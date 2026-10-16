@@ -71,6 +71,7 @@ _ROW_FIELDS = (
     "units", "potential", "selection_set", "run_datetime", "run_date_label",
     "value_label", "median", "err_low", "err_high", "N_models", "status", "title",
     "note", "outcome", "reference_nucleus", "subject_kind",
+    "lr_schedule_label", "lr_schedule_detail",
 )
 
 
