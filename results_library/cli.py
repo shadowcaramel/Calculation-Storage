@@ -5,6 +5,7 @@ Command line interface for the results library.
     python -m results_library.cli build --with-papers --bibliography path/to/my_publications.bib
     python -m results_library.cli catalog --library ...
     python -m results_library.cli site    --library ...
+    python -m results_library.cli explorer --with-papers --library ...
     python -m results_library.cli excel   --library ...
     python -m results_library.cli lint    --library ...
     python -m results_library.cli serve   --library ...
@@ -103,7 +104,7 @@ def command_site(args: argparse.Namespace) -> int:
     from results_library.views.site import build_site
 
     library = resolve_library(args)
-    ready, include_papers, paper_links = _papers_for_build(args, library)
+    ready, include_papers, paper_links, papers = _papers_for_build(args, library)
     if not ready:
         return 1
     frame, _ = build_catalog(library)
@@ -114,7 +115,27 @@ def command_site(args: argparse.Namespace) -> int:
         paper_links=paper_links,
     )
     print(f"Site: {library / 'index.html'}  (legacy: {library / 'legacy.html'})")
-    page = build_explorer(library, frame, paper_links=paper_links)
+    page = build_explorer(library, frame, paper_links=paper_links, papers=papers)
+    print(f"Explorer: {page}")
+    return 0
+
+
+def command_explorer(args: argparse.Namespace) -> int:
+    """Rewrite only explorer.html and explorer/ from the existing catalog.
+
+    The catalog, the classic site, the workbook and paper-site/ are left as
+    they are, so this is safe to run while trying out the explorer.
+    """
+    from results_library.catalog import load_catalog
+    from results_library.views.app import build_explorer
+
+    library = resolve_library(args)
+    args.explorer_only = True
+    ready, _include, paper_links, papers = _papers_for_build(args, library)
+    if not ready:
+        return 1
+    frame = load_catalog(library)
+    page = build_explorer(library, frame, paper_links=paper_links, papers=papers)
     print(f"Explorer: {page}")
     return 0
 
@@ -165,7 +186,7 @@ def command_build(args: argparse.Namespace) -> int:
     from results_library.views.site import build_site
 
     library = resolve_library(args)
-    ready, include_papers, paper_links = _papers_for_build(args, library)
+    ready, include_papers, paper_links, papers = _papers_for_build(args, library)
     if not ready:
         return 1
 
@@ -180,7 +201,7 @@ def command_build(args: argparse.Namespace) -> int:
         paper_links=paper_links,
     )
     print(f"Site:    {library / 'index.html'}  (legacy: {library / 'legacy.html'})")
-    page = build_explorer(library, frame, paper_links=paper_links)
+    page = build_explorer(library, frame, paper_links=paper_links, papers=papers)
     print(f"Explorer: {page}")
 
     if not args.no_excel:
@@ -305,23 +326,26 @@ def _bibliography_path(args: argparse.Namespace) -> Optional[Path]:
 def _papers_for_build(args: argparse.Namespace, library: Path):
     """Build the paper site first when requested.
 
-    Returns ``(ready, include_papers, paper_links)``. ``ready`` is false when
+    Returns ``(ready, include_papers, paper_links, papers)``; ``papers`` is the
+    explorer's Papers view. ``ready`` is false when
     ``--with-papers`` was asked for and the paper build did not succeed, so the
     caller must not write the calculation site. A plain build never imports
     ``paper_storage``.
     """
     if not getattr(args, "with_papers", False):
-        return True, False, None
+        return True, False, None, None
     if not (library / "papers.json").is_file():
         print(
             f"papers.json is missing in {library}. "
             "A --with-papers build needs that file.",
             file=sys.stderr,
         )
-        return False, False, None
-    from paper_storage.build import build_papers
+        return False, False, None, None
+    from paper_storage.build import build_papers, read_papers
 
-    result = build_papers(library, bibliography=_bibliography_path(args))
+    # Refreshing only the explorer reads papers but leaves paper-site/ alone.
+    build = read_papers if getattr(args, "explorer_only", False) else build_papers
+    result = build(library, bibliography=_bibliography_path(args))
     for issue in result.issues:
         print(f"  {issue}")
     if not result.ok:
@@ -329,9 +353,10 @@ def _papers_for_build(args: argparse.Namespace, library: Path):
             "Paper storage build failed; the calculation site was not written.",
             file=sys.stderr,
         )
-        return False, False, None
-    print(f"Papers:  {result.site / 'index.html'}")
-    return True, True, result.links
+        return False, False, None, None
+    if not getattr(args, "explorer_only", False):
+        print(f"Papers:  {result.site / 'index.html'}")
+    return True, True, result.links, result.explorer
 
 
 def _add_paper_flags(parser: argparse.ArgumentParser) -> None:
@@ -404,6 +429,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_paper_flags(site)
     site.set_defaults(func=command_site)
+
+    explorer = subparsers.add_parser(
+        "explorer",
+        help="rewrite only the explorer from the existing catalog",
+        parents=[shared],
+    )
+    _add_paper_flags(explorer)
+    explorer.set_defaults(func=command_explorer)
 
     excel = subparsers.add_parser(
         "excel", help="rebuild the Excel workbook", parents=[shared]

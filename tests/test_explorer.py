@@ -172,6 +172,30 @@ class TestDataFile:
         row = next(r for r in data["rows"] if r["id"] == target)
         assert row["papers"] == links[target]
 
+    def test_paper_view_is_passed_through(self, library):
+        frame, _ = build_catalog(library)
+        papers = {"papers": [{"id": "p1", "title": "T", "materials": [], "loose": []}], "issues": []}
+        build_explorer(library, frame, papers=papers)
+        assert _read_catalog(library)["papers"] == papers
+        build_explorer(library, frame)
+        assert _read_catalog(library)["papers"] is None
+
+    def test_nmax_windows_are_integers(self, library):
+        frame, _ = build_catalog(library)
+        build_explorer(library, frame)
+        for row in _read_catalog(library)["rows"]:
+            assert all(v is None or isinstance(v, int) for v in row["nmax"])
+
+    def test_cli_explorer_touches_only_the_explorer(self, library):
+        pytest.importorskip("jinja2")
+        assert cli_main(["catalog", "--library", str(library)]) == 0
+        library.joinpath("papers.json").write_text('{"papers": []}', encoding="utf-8")
+        assert cli_main(["explorer", "--with-papers", "--library", str(library)]) == 0
+        assert (library / EXPLORER_PAGE).is_file()
+        assert not (library / "index.html").exists()
+        assert not (library / "paper-site").exists()
+        assert _read_catalog(library)["papers"] == {"papers": [], "issues": []}
+
     def test_rebuild_replaces_the_folder(self, library):
         frame, _ = build_catalog(library)
         build_explorer(library, frame)
@@ -210,7 +234,7 @@ class TestInBrowser:
             page.on("pageerror", lambda exc: errors.append(str(exc)))
             base = page_path.as_uri()
             page.goto(base)
-            assert page.locator("h1").inner_text() == "Modern library"
+            assert page.locator("h1").inner_text().lower() == "modern library"
             page.goto(base + "#modern/n/6He")
             assert page.locator(".famrow").count() == 1
             page.goto(base + "#modern/f/" + family.replace("/", "%2F"))
@@ -219,6 +243,8 @@ class TestInBrowser:
             assert page.locator("#insp").is_visible()
             assert "result" in page.locator("#insp .eyebrow").first.inner_text().lower()
             page.goto(base + "#legacy")
-            assert page.locator("h1").inner_text() == "Legacy library"
+            assert page.locator("h1").inner_text().lower() == "legacy library"
+            page.goto(base + "#papers")
+            assert page.locator("h1").inner_text().lower() == "papers"
             browser.close()
         assert errors == []

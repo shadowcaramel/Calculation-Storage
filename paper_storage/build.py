@@ -17,6 +17,7 @@ from typing import Dict, List, Optional
 from paper_storage.bib import Citation, load_bibliography
 from paper_storage.lint import PaperIssue, lint_papers
 from paper_storage.load import PAPERS_FILENAME, Paper, ParsedGrid, PapersLoad, load_grid, load_papers
+from paper_storage.views.explorer import explorer_papers
 from paper_storage.views.site import PAPER_SITE_DIRNAME, render_site
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,30 @@ class PaperBuild:
     site: Path
     links: Dict[str, List[dict]] = field(default_factory=dict)
     issues: List[PaperIssue] = field(default_factory=list)
+    #: What the explorer's Papers view reads; see :func:`explorer_papers`.
+    explorer: Optional[dict] = None
+
+
+@dataclass
+class _Prepared:
+    papers: List[Paper]
+    citations: Optional[Dict[str, Citation]]
+    grids: Dict[str, ParsedGrid]
+    issues: List[PaperIssue]
+    links: Dict[str, List[dict]]
+
+
+def _prepare(library_root: Path, loaded: PapersLoad, bibliography: Optional[Path]) -> _Prepared:
+    citations = _citations(bibliography)
+    grids = _grids(library_root, loaded)
+    issues = lint_papers(library_root, loaded.papers, bibliography=citations, grids=grids)
+    return _Prepared(
+        papers=loaded.papers,
+        citations=citations,
+        grids=grids,
+        issues=issues,
+        links=result_links(loaded.papers, citations),
+    )
 
 
 def build_papers(
@@ -49,19 +74,51 @@ def build_papers(
             issues=[PaperIssue("error", loaded.message or "Could not read papers.json")],
         )
 
-    citations = _citations(bibliography)
-    grids = _grids(library_root, loaded)
-    issues = lint_papers(
-        library_root,
-        loaded.papers,
-        bibliography=citations,
-        grids=grids,
-    )
-    links = result_links(loaded.papers, citations)
-    render_site(library_root, loaded.papers, citations, grids)
-    _write_links(library_root, links)
+    prepared = _prepare(library_root, loaded, bibliography)
+    render_site(library_root, prepared.papers, prepared.citations, prepared.grids)
+    _write_links(library_root, prepared.links)
     _copy_manifest(library_root)
-    return PaperBuild(ok=True, site=site, links=links, issues=issues)
+    return PaperBuild(
+        ok=True,
+        site=site,
+        links=prepared.links,
+        issues=prepared.issues,
+        explorer=_explorer(library_root, prepared),
+    )
+
+
+def read_papers(
+    library_root: Path,
+    bibliography: Optional[Path] = None,
+) -> PaperBuild:
+    """Everything :func:`build_papers` returns, without writing ``paper-site/``.
+
+    For refreshing only the explorer: the links and the Papers view come from
+    the same inputs, but nothing in the library is touched.
+    """
+    library_root = Path(library_root)
+    loaded = load_papers(library_root)
+    site = library_root / PAPER_SITE_DIRNAME
+    if not loaded.ok:
+        return PaperBuild(
+            ok=False,
+            site=site,
+            issues=[PaperIssue("error", loaded.message or "Could not read papers.json")],
+        )
+    prepared = _prepare(library_root, loaded, bibliography)
+    return PaperBuild(
+        ok=True,
+        site=site,
+        links=prepared.links,
+        issues=prepared.issues,
+        explorer=_explorer(library_root, prepared),
+    )
+
+
+def _explorer(library_root: Path, prepared: _Prepared) -> dict:
+    return explorer_papers(
+        library_root, prepared.papers, prepared.citations, prepared.grids, prepared.issues
+    )
 
 
 def result_links(

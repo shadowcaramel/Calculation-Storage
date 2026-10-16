@@ -248,8 +248,13 @@ def explorer_data(
     catalog: pd.DataFrame,
     *,
     paper_links: Optional[Mapping[str, List[Mapping[str, Any]]]] = None,
+    papers: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Everything ``catalog.js`` carries, as plain JSON-ready data."""
+    """Everything ``catalog.js`` carries, as plain JSON-ready data.
+
+    ``papers`` is the paper storage's own view (``paper_storage.views.explorer``),
+    passed through untouched; this package does not read papers itself.
+    """
     records = [
         {key: _clean(value) for key, value in record.items()}
         for record in catalog.to_dict("records")
@@ -291,6 +296,7 @@ def explorer_data(
         "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "headline_order": list(HEADLINE_SELECTION_ORDER),
         "with_papers": paper_links is not None,
+        "papers": dict(papers) if papers is not None else None,
         "hints": _hints(),
         "nuclei": nuclei,
         "figures": figures,
@@ -321,6 +327,7 @@ def build_explorer(
     catalog: Optional[pd.DataFrame] = None,
     *,
     paper_links: Optional[Mapping[str, List[Mapping[str, Any]]]] = None,
+    papers: Optional[Mapping[str, Any]] = None,
 ) -> Path:
     """Write ``explorer.html`` and ``explorer/`` and return the page path."""
     library_root = Path(library_root)
@@ -337,7 +344,7 @@ def build_explorer(
     _copy_tree(assets / "app", target)
     _copy_tree(here / "assets" / "katex", target / "katex")
 
-    data = explorer_data(library_root, catalog, paper_links=paper_links)
+    data = explorer_data(library_root, catalog, paper_links=paper_links, papers=papers)
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     # A stray "</script>" inside a note would end an inline script; the data
     # file is loaded by src, but escape it anyway so the file stays inert.

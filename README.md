@@ -100,9 +100,10 @@ Each build also writes `explorer.html` in the library folder, next to
 `index.html`, plus an `explorer/` folder it loads from. It is the same catalog
 as one app, opened the same way (from the local library folder, no network):
 
-- **Modern | Legacy** switch at the top. The two libraries are never mixed.
-- A map of the nuclei in the library (Z up, N across) and a family tree on the
-  left.
+- **Modern | Legacy | Papers** switch at the top. The two result libraries are
+  never mixed.
+- A chart of the nuclei in the library (Z up, N across) and a family tree on
+  the left. Library counts and the status mix sit at the foot of the overview.
 - **Nucleus:** one row per family (nucleus, state, observable) with its
   headline value and a strip showing where the other variants land.
 - **Family:** the headline value, filters (selection set, Nmax start,
@@ -112,10 +113,24 @@ as one app, opened the same way (from the local library folder, no network):
 - **Result:** a side panel with the value, data selection, the other
   selection sets of the same ensemble, plots (click to enlarge, arrow keys
   between them), notes, statistics, provenance, files, and Copy LaTeX / TSV /
-  annotation.
+  annotation. A result printed in a paper lists where, and whether the paper
+  agrees with the stored median.
+- **Papers** (on a `--with-papers` build): every article with its tables and
+  figures. A table cell that names a result opens it in the side panel, and is
+  marked by its check: agrees, mismatch, derived, or missing. The checks from
+  the paper build (citations, files, linked numbers) are listed on top.
 
-Routes live in the URL hash (`explorer.html#legacy/n/2H`), so the back button
-and bookmarks work. The classic site keeps building alongside it for now.
+Routes live in the URL hash (`explorer.html#legacy/n/2H`, `#papers/p/<id>`),
+so the back button and bookmarks work. The classic site keeps building
+alongside it for now. The look is a modern Bauhaus system; its rules and
+colour tokens are in `results_library/views/explorer_assets/DESIGN.md`.
+
+To refresh only the explorer from the existing catalog (no catalog, site,
+workbook or `paper-site/` rewrite):
+
+```bash
+python -m results_library.cli explorer --with-papers --library "G:/Shared drives/Calculation results/Calculation storage" --bibliography "G:/My Drive/!ML/2026 rework/bibliography/my_publications.bib"
+```
 
 Which result heads a family: a result annotated `headline = true` wins;
 otherwise published before working before probing, then the selection set in

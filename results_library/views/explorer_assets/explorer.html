@@ -18,14 +18,17 @@ try {
 <body data-lib="modern">
 <div class="app">
   <header class="top">
-    <div class="brand"><i></i>Calculation Storage</div>
-    <nav class="libs" id="libs" aria-label="Library">
-      <button type="button" data-lib="modern" aria-pressed="true">Modern <span class="c" id="count-modern"></span></button>
-      <button type="button" data-lib="legacy" aria-pressed="false">Legacy <span class="c" id="count-legacy"></span></button>
+    <a class="brand" href="#modern"><span class="mark" aria-hidden="true"><i class="c"></i><i class="s"></i><i class="t"></i></span>Calculation Storage</a>
+    <nav class="libs" id="libs" aria-label="Section">
+      <button type="button" data-lib="modern" aria-pressed="true">Modern</button>
+      <button type="button" data-lib="legacy" aria-pressed="false">Legacy</button>
+      <button type="button" data-lib="papers" aria-pressed="false">Papers</button>
     </nav>
     <span class="spacer"></span>
-    <a class="toplink" href="index.html">Classic site</a>
-    <button type="button" class="theme" id="theme">Dark</button>
+    <div class="tools">
+      <a class="toplink" href="index.html">Classic site</a>
+      <button type="button" class="theme" id="theme">Dark</button>
+    </div>
   </header>
   <div class="body" id="layout">
     <aside class="rail" id="rail"></aside>
