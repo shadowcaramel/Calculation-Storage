@@ -114,8 +114,9 @@
   function nmaxTex() { return tex(AXES.Nmax.latex, AXES.Nmax.label); }
   // KaTeX draws \hbar as U+210F, which none of the page faces has, so ħΩ is
   // set as plain text (U+0127 U+03A9) in whatever face surrounds it.
-  function hwTex() { return esc(AXES.hOmega.label); }
-  function labelTex(label) { var t = (CAT.label_tex || {})[label]; return t && t.indexOf("\\hbar") < 0 ? tex(t, label) : esc(label); }
+  // .sym keeps it out of uppercase headings, which would turn ħ into Ħ.
+  function hwTex() { return '<span class="sym">' + esc(AXES.hOmega.label) + "</span>"; }
+  function labelTex(label) { var t = (CAT.label_tex || {})[label]; return t && t.indexOf("\\hbar") < 0 ? tex(t, label) : t ? '<span class="sym">' + esc(label) + "</span>" : esc(label); }
   // Paper tables keep the text as typed; show a typed hyphen before a digit
   // as a true minus sign, as KaTeX does for the stored values.
   function minus(text) { return String(text == null ? "" : text).replace(/(^|[\s(\[\/=])-(?=\.?\d)/g, "$1\u2212"); }

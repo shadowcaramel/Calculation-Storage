@@ -389,3 +389,4 @@ table.grid td.linked.sel button { background: var(--acc); color: var(--on-acc); 
 }
 .tex, .tex .katex { white-space: nowrap; }
 .facetgrp > span .katex, .eyebrow .katex { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.sym { text-transform: none; letter-spacing: 0; }
