@@ -112,8 +112,13 @@
   function valTex(r) { return '<span class="fig">' + tex(r.value_latex, r.value_label) + "</span>"; }
   var AXES = CAT.axes || { Nmax: { latex: "N_{\\max}", label: "N\u2098\u2090\u2093" }, hOmega: { latex: "\\hbar\\Omega", label: "\u0127\u03a9" } };
   function nmaxTex() { return tex(AXES.Nmax.latex, AXES.Nmax.label); }
-  function hwTex() { return tex(AXES.hOmega.latex, AXES.hOmega.label); }
-  function labelTex(label) { var t = (CAT.label_tex || {})[label]; return t ? tex(t, label) : esc(label); }
+  // KaTeX draws \hbar as U+210F, which none of the page faces has, so ħΩ is
+  // set as plain text (U+0127 U+03A9) in whatever face surrounds it.
+  function hwTex() { return esc(AXES.hOmega.label); }
+  function labelTex(label) { var t = (CAT.label_tex || {})[label]; return t && t.indexOf("\\hbar") < 0 ? tex(t, label) : esc(label); }
+  // Paper tables keep the text as typed; show a typed hyphen before a digit
+  // as a true minus sign, as KaTeX does for the stored values.
+  function minus(text) { return String(text == null ? "" : text).replace(/(^|[\s(\[\/=])-(?=\.?\d)/g, "$1\u2212"); }
 
   // ---- geometric marks ---------------------------------------------------
   // Series i: colour --s(i+1), shape i mod 4 (circle, square, triangle,
@@ -655,7 +660,7 @@
       o += '<div class="tablewrap"><table class="pivot grid"><thead><tr>' + m.columns.map(function (c) { return "<th>" + tex(c.latex, c.text) + "</th>"; }).join("") + "</tr></thead><tbody>";
       m.rows.forEach(function (row, ri) {
         o += "<tr>" + row.map(function (cell) {
-          var body = tex(cell.latex, cell.text);
+          var body = cell.latex ? tex(cell.latex, cell.text) : esc(minus(cell.text));
           if (!cell.result) return "<td>" + body + "</td>";
           var st = checkState(m, cell.result, ri);
           return '<td class="linked st-' + st + (state.sel === cell.result ? " sel" : "") + '"><button type="button" data-open="' + esc(cell.result) + '" title="' + esc(st) + " · " + esc(cell.result) + '">' + body + "</button></td>";
@@ -669,7 +674,7 @@
       var summary = Object.keys(c).map(function (k) { return c[k] + " " + k; }).join(" · ");
       o += '<div class="panel-b"><details' + (bad ? " open" : "") + "><summary>Linked results · " + esc(summary) + '</summary><div class="tablewrap" style="margin-top:8px"><table class="pivot"><thead><tr><th>Number</th><th>Printed</th><th>Stored</th><th>Check</th><th>Note</th></tr></thead><tbody>';
       m.checks.forEach(function (x) {
-        o += '<tr><td><button type="button" class="cell" data-open="' + esc(x.result) + '">' + esc(x.label) + '</button></td><td class="num">' + esc(x.printed || "–") + '</td><td class="num">' + esc(x.stored || "–") + '</td><td><span class="verdict st-' + esc(x.state) + '">' + esc(x.state === "nocell" ? "no cell" : x.state) + "</span></td><td class=\"hint\">" + esc(x.note) + "</td></tr>";
+        o += '<tr><td><button type="button" class="cell" data-open="' + esc(x.result) + '">' + esc(x.label) + '</button></td><td class="num">' + esc(minus(x.printed) || "–") + '</td><td class="num">' + esc(minus(x.stored) || "–") + '</td><td><span class="verdict st-' + esc(x.state) + '">' + esc(x.state === "nocell" ? "no cell" : x.state) + "</span></td><td class=\"hint\">" + esc(x.note) + "</td></tr>";
       });
       o += "</tbody></table></div></details></div>";
     }
@@ -727,7 +732,7 @@
     var printed = CHECKS_BY_RESULT[r.id] || [];
     if (printed.length) {
       o += '<div class="sec"><div class="eyebrow">Printed in papers</div><table class="pivot"><tbody>' + printed.map(function (x) {
-        return '<tr><td style="white-space:normal"><a href="' + paperRoute(x.paper.id) + '">' + esc(x.material ? x.material.title : x.paper.title) + '</a><div class="hint">' + esc(x.check.label) + (x.check.note ? " · " + esc(x.check.note) : "") + '</div></td><td class="num">' + esc(x.check.printed || "") + '</td><td><span class="verdict st-' + esc(x.check.state) + '">' + esc(x.check.state === "nocell" ? "no cell" : x.check.state) + "</span></td></tr>";
+        return '<tr><td style="white-space:normal"><a href="' + paperRoute(x.paper.id) + '">' + esc(x.material ? x.material.title : x.paper.title) + '</a><div class="hint">' + esc(x.check.label) + (x.check.note ? " · " + esc(x.check.note) : "") + '</div></td><td class="num">' + esc(minus(x.check.printed)) + '</td><td><span class="verdict st-' + esc(x.check.state) + '">' + esc(x.check.state === "nocell" ? "no cell" : x.check.state) + "</span></td></tr>";
       }).join("") + "</tbody></table></div>";
     }
 
