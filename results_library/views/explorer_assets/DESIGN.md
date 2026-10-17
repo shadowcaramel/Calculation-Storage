@@ -93,6 +93,12 @@ it covers Cyrillic, so the Russian captions in papers render in the same face.
   the baseline, a band for the uncertainty) beside a states table, lowest
   excitation energy first. A switch goes back to the family list. The
   baseline is labelled g.s. only: the catalog does not say which state it is.
+* **Search**: its own page per library, opened from the box in the top bar
+  or with `/`. Facets replace the family tree in the rail (the Z–N chart
+  toggles nuclei, observables sit under their matrix group, last-run years
+  are bars); words match names, states as typed (5/2+), potentials,
+  selection sets, tags and notes. Each count is what that value would leave.
+  The view lives in the hash, so "Copy link to this view" reopens it.
 * **Nuclide names**: the mass number is a `<sup>` in the same face as the
   symbol, never a Unicode superscript (the display face lacks ⁴–⁹).
 * **Sortable headings**: an arrow after the label; the active one is

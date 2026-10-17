@@ -81,7 +81,7 @@ _ROW_FIELDS = (
     "id", "family", "nucleus", "nucleus_label", "state_label", "observable", "observable_label",
     "units", "potential", "selection_set", "run_datetime", "run_date_label",
     "value_label", "median", "err_low", "err_high", "N_models", "status", "title",
-    "note", "outcome", "reference_nucleus", "subject_kind",
+    "note", "outcome", "reference_nucleus", "reference_convention", "subject_kind",
     "lr_schedule_label", "lr_schedule_detail",
 )
 

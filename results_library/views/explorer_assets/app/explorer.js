@@ -10,6 +10,7 @@
  *   #legacy/n/6He                one nucleus
  *   #legacy/f/<family>           one family
  *   #legacy/r/<result id>        one family, with that result in the side panel
+ *   #legacy/search/<query>       search one library (q=words&nuc=6He&col=rp&sort=-val)
  *   #papers                      the papers and their checks
  *   #papers/p/<paper>            one paper
  *   #papers/p/<paper>/r/<id>     one paper, with a result in the side panel
@@ -46,7 +47,7 @@
     p.loose.forEach(function (c) { (CHECKS_BY_RESULT[c.result] = CHECKS_BY_RESULT[c.result] || []).push({ paper: p, material: null, check: c }); });
   });
 
-  var state = { lib: "modern", nuc: null, fam: null, sel: null, paper: null, pot: null, nview: "scheme", facets: {}, facetFam: null, xaxis: null, zoom: true, sort: { key: "date", dir: -1 } };
+  var state = { lib: "modern", view: null, search: null, nuc: null, fam: null, sel: null, paper: null, pot: null, nview: "scheme", facets: {}, facetFam: null, xaxis: null, zoom: true, sort: { key: "date", dir: -1 } };
 
   // ---- helpers ---------------------------------------------------------
 
@@ -223,36 +224,34 @@
     return esc(m[1]) + '<tspan font-size="8.5" dy="3">' + esc(m[2]) + '</tspan><tspan dy="-3">' + esc(m[3]) + "</tspan>";
   }
 
-  function nucleiMap(lib, big) {
-    var counts = countBy(libRows(lib), function (r) { return r.nucleus; });
+  // The rail's Z-N chart. Each nucleus with results links to its page; with
+  // `pick` (the search page) it toggles a filter instead and shows how many
+  // families match.
+  function nucleiMap(lib, pick) {
+    var counts = pick ? pick.counts : countBy(libRows(lib), function (r) { return r.nucleus; });
     var cells = Object.keys(CAT.nuclei).filter(function (n) { return CAT.nuclei[n].chart; });
     if (!cells.length) return "";
     var maxZ = 1, maxN = 1;
     cells.forEach(function (n) { var c = CAT.nuclei[n].chart; maxZ = Math.max(maxZ, c.Z); maxN = Math.max(maxN, c.N); });
-    // The small chart keeps its labels near the rail's text size, so its cells
-    // fill the rail with thin gaps.
-    var cell = big ? 54 : 30, pad = big ? 34 : 15, top = big ? 6 : 2, gap = big ? 2 : 1.5;
-    var W = pad + maxN * cell + 6, H = top + maxZ * cell + pad + (big ? 14 : 4);
-    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Chart of the nuclei in the library, proton number Z against neutron number N">';
-    var axis = big ? "" : ' font-size="11"';
-    for (var z = 1; z <= maxZ; z++) s += '<text class="nz-axis"' + axis + ' x="' + (pad - (big ? 7 : 4)) + '" y="' + (top + (maxZ - z) * cell + cell / 2 + 4) + '" text-anchor="end">' + z + "</text>";
-    for (var n = 1; n <= maxN; n++) s += '<text class="nz-axis"' + axis + ' x="' + (pad + (n - 1) * cell + cell / 2) + '" y="' + (top + maxZ * cell + (big ? 14 : 13)) + '" text-anchor="middle">' + n + "</text>";
-    if (big) {
-      s += '<text class="nz-title" x="' + (pad + maxN * cell) + '" y="' + (top + maxZ * cell + 30) + '" text-anchor="end">N, NEUTRONS →</text>';
-      // Read bottom to top, so the arrow points up the Z axis.
-      s += '<text class="nz-title" transform="translate(12 ' + (top + 2) + ') rotate(-90)" text-anchor="end">Z, PROTONS →</text>';
-    }
+    // Labels stay near the rail's text size, so the cells fill the rail with
+    // thin gaps.
+    var cell = 30, pad = 15, top = 2, gap = 1.5;
+    var W = pad + maxN * cell + 6, H = top + maxZ * cell + pad + 4;
+    var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="' + (pick ? "group" : "img") + '" aria-label="' + (pick ? "Filter by nucleus" : "Chart of the nuclei in the library, proton number Z against neutron number N") + '">';
+    for (var z = 1; z <= maxZ; z++) s += '<text class="nz-axis" font-size="11" x="' + (pad - 4) + '" y="' + (top + (maxZ - z) * cell + cell / 2 + 4) + '" text-anchor="end">' + z + "</text>";
+    for (var n = 1; n <= maxN; n++) s += '<text class="nz-axis" font-size="11" x="' + (pad + (n - 1) * cell + cell / 2) + '" y="' + (top + maxZ * cell + 13) + '" text-anchor="middle">' + n + "</text>";
     cells.forEach(function (name) {
       var c = CAT.nuclei[name].chart, x = pad + (c.N - 1) * cell, y = top + (maxZ - c.Z) * cell;
-      var has = !!counts[name], cur = state.nuc === name && state.lib === lib;
-      var open = has ? '<a href="' + route(lib, "n", name) + '" aria-label="' + esc(name) + ", " + plural(counts[name], "result", "results") + '">' : "";
+      var has = !!counts[name], cur = pick ? pick.on.indexOf(name) >= 0 : state.nuc === name && state.lib === lib;
+      var label = esc(name) + ", " + (pick ? plural(counts[name] || 0, "matching family", "matching families") : plural(counts[name], "result", "results"));
+      var open = !has ? "" : pick ? '<g role="button" tabindex="0" data-snuc="' + esc(name) + '" aria-pressed="' + cur + '" aria-label="' + label + '">' : '<a href="' + route(lib, "n", name) + '" aria-label="' + label + '">';
       s += open + '<g class="nz-cell' + (has ? " has" : " empty") + (cur ? " cur" : "") + '">';
       s += '<rect x="' + (x + gap) + '" y="' + (y + gap) + '" width="' + (cell - 2 * gap) + '" height="' + (cell - 2 * gap) + '"/>';
-      if (has && !cur) s += '<rect class="flag" x="' + (x + gap) + '" y="' + (y + gap) + '" width="' + (big ? 8 : 5) + '" height="' + (big ? 8 : 5) + '"/>';
-      s += '<text x="' + (x + cell / 2) + '" y="' + (y + cell * (big ? 0.5 : 0.69)) + '" text-anchor="middle" font-size="' + (big ? 16 : 13.5) + '" font-weight="700">';
-      s += '<tspan font-size="' + (big ? 10 : 8.5) + '" dy="-' + (big ? 5 : 4.5) + '">' + c.A + '</tspan><tspan dy="' + (big ? 5 : 4.5) + '">' + esc(c.symbol) + "</tspan></text>";
-      if (big) s += '<text class="cnt" x="' + (x + cell / 2) + '" y="' + (y + cell * 0.82) + '" text-anchor="middle" font-size="10.5">' + (counts[name] || "–") + "</text>";
-      s += "</g>" + (has ? "</a>" : "");
+      if (has && !cur && !pick) s += '<rect class="flag" x="' + (x + gap) + '" y="' + (y + gap) + '" width="5" height="5"/>';
+      s += '<text x="' + (x + cell / 2) + '" y="' + (y + cell * (pick ? 0.5 : 0.69)) + '" text-anchor="middle" font-size="' + (pick ? 12 : 13.5) + '" font-weight="700">';
+      s += '<tspan font-size="' + (pick ? 7.5 : 8.5) + '" dy="-4.5">' + c.A + '</tspan><tspan dy="4.5">' + esc(c.symbol) + "</tspan></text>";
+      if (pick && has) s += '<text class="cnt" x="' + (x + cell / 2) + '" y="' + (y + cell * 0.9) + '" text-anchor="middle" font-size="10.5">' + counts[name] + "</text>";
+      s += "</g>" + (!has ? "" : pick ? "</g>" : "</a>");
     });
     return s + "</svg>";
   }
@@ -263,7 +262,7 @@
     if (state.lib === "papers") return renderPaperRail();
     var fams = families(state.lib), byNuc = {};
     fams.forEach(function (f) { (byNuc[f.nucleus] = byNuc[f.nucleus] || []).push(f); });
-    var h = '<div class="eyebrow">Nuclei · Z against N</div><div class="nzmap">' + nucleiMap(state.lib, false) + "</div>";
+    var h = '<div class="eyebrow">Nuclei · Z against N</div><div class="nzmap">' + nucleiMap(state.lib) + "</div>";
     h += '<div class="eyebrow">' + libName(state.lib) + ' families</div><nav class="tree" aria-label="Families">';
     h += '<a href="' + route(state.lib) + '"' + (!state.nuc ? ' aria-current="page"' : "") + ">Overview</a>";
     Object.keys(byNuc).sort(nucOrder).forEach(function (n) {
@@ -484,6 +483,196 @@
 
   // ---- nucleus ---------------------------------------------------------
 
+  // ---- search --------------------------------------------------------------
+  // One library at a time, families as rows. Facets in the rail narrow the
+  // list (several values in one facet widen it); counts are what each value
+  // would leave. The whole view lives in the hash, so a link reopens it.
+
+  var SEARCH_SORTS = ["nuc", "obs", "val", "pot", "n", "date"];
+  function emptySearch() { return { q: "", on: {}, sort: { key: "nuc", dir: 1 } }; }
+  function colKey(lib, f) {
+    var cols = (CAT.matrix || {})[lib] || [];
+    for (var i = 0; i < cols.length; i++) if (cols[i].observables.indexOf(f.head.observable) >= 0) return cols[i].key;
+    return null;
+  }
+  function searchDefs(lib) {
+    var fams = families(lib), order = CAT.headline_order;
+    var defs = [
+      { key: "nuc", label: "Nucleus", get: function (f) { return f.nucleus; }, show: function (v) { return nucHtml(v); } },
+      { key: "col", label: "Observable", get: function (f) { return colKey(lib, f); }, show: function (v) { var c = ((CAT.matrix || {})[lib] || []).filter(function (x) { return x.key === v; })[0]; return c ? (c.latex ? tex(c.latex, c.label) : esc(c.label)) : esc(v); } },
+      { key: "status", label: "Status", vals: STATUS_ORDER.filter(function (x) { return fams.some(function (f) { return f.head.status === x; }); }), get: function (f) { return f.head.status; } },
+      { key: "pot", label: "Potential", get: function (f) { return f.potentials; } },
+      { key: "set", label: "Selection set", get: function (f) { return f.head.selection_set; }, mono: true,
+        order: function (a, b) { var ia = order.indexOf(a), ib = order.indexOf(b); return ((ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)) || String(a).localeCompare(String(b)); } },
+      { key: "year", label: "Last run", get: function (f) { return String(f.latest || "").slice(0, 4) || null; } }
+    ];
+    if (CAT.with_papers) defs.splice(5, 0, { key: "paper", label: "Paper", vals: ["yes", "no"], get: function (f) { return f.rows.some(function (r) { return r.papers.length; }) ? "yes" : "no"; }, show: function (v) { return v === "yes" ? "Used in a paper" : "Not in a paper yet"; } });
+    defs.forEach(function (d) {
+      if (d.vals) return;
+      var vals = uniq([].concat.apply([], fams.map(function (f) { var v = d.get(f); return Array.isArray(v) ? v : [v]; })));
+      if (d.key === "nuc") vals.sort(nucOrder);
+      else if (d.key === "col") vals = ((CAT.matrix || {})[lib] || []).map(function (c) { return c.key; }).filter(function (k) { return vals.indexOf(k) >= 0; });
+      else vals.sort(d.order || undefined);
+      d.vals = vals;
+    });
+    return defs;
+  }
+  function hasValue(def, f, value) { var v = def.get(f); return Array.isArray(v) ? v.indexOf(value) >= 0 : v === value; }
+  // Text to match: names, labels, states (as typed, 5/2+), potentials,
+  // selection sets, tags and notes of every result in the family.
+  function haystack(f) {
+    if (f.hay) return f.hay;
+    var h = f.head, bits = [f.key, f.nucleus, nucInfo(f.nucleus).label, h.observable, h.observable_label, h.state_label, h.reference_nucleus];
+    if (h.level) bits.push(levelText(h.level), levelText(h.level).replace(" ", ""));
+    bits.push(h.reference_convention);
+    f.rows.forEach(function (r) { bits.push(r.potential, r.selection_set, r.title, r.note, r.outcome, r.status); bits.push.apply(bits, r.tags); });
+    f.hay = bits.filter(Boolean).join(" \u0001 ").toLowerCase().replace(/[⁺]/g, "+").replace(/[⁻−]/g, "-");
+    return f.hay;
+  }
+  function textMatch(f, q) {
+    var terms = String(q || "").toLowerCase().replace(/−/g, "-").split(/\s+/).filter(Boolean);
+    var hay = haystack(f);
+    return terms.every(function (t) { return hay.indexOf(t) >= 0; });
+  }
+  function searchPasses(f, defs, skip) {
+    var on = state.search.on;
+    return textMatch(f, state.search.q) && defs.every(function (d) {
+      if (d.key === skip || !on[d.key] || !on[d.key].length) return true;
+      return on[d.key].some(function (v) { return hasValue(d, f, v); });
+    });
+  }
+  function searchCount(defs, d, value) { return families(state.lib).filter(function (f) { return searchPasses(f, defs, d.key) && hasValue(d, f, value); }).length; }
+
+  function searchQuery() {
+    var q = new URLSearchParams(), S = state.search;
+    if (S.q) q.set("q", S.q);
+    Object.keys(S.on).forEach(function (k) { S.on[k].forEach(function (v) { q.append(k, v); }); });
+    if (S.sort.key !== "nuc" || S.sort.dir !== 1) q.set("sort", (S.sort.dir < 0 ? "-" : "") + S.sort.key);
+    return q.toString();
+  }
+  function searchHash(lib) { var q = searchQuery(); return "#" + lib + "/search" + (q ? "/" + q : ""); }
+  function parseSearch(text) {
+    var out = emptySearch(), q;
+    try { q = new URLSearchParams(text || ""); } catch (err) { return out; }
+    q.forEach(function (v, k) {
+      if (k === "q") out.q = v;
+      else if (k === "sort") { var key = v.replace(/^-/, ""); if (SEARCH_SORTS.indexOf(key) >= 0) out.sort = { key: key, dir: v.charAt(0) === "-" ? -1 : 1 }; }
+      else (out.on[k] = out.on[k] || []).push(v);
+    });
+    return out;
+  }
+  var lastSearch = {};
+  function syncSearchHash() {
+    var h = searchHash(state.lib);
+    lastSearch[state.lib] = h;
+    if (location.hash !== h) history.replaceState(null, "", h);
+  }
+
+  function renderSearchRail(defs) {
+    var on = state.search.on, counts = {};
+    var nucDef = defs.filter(function (d) { return d.key === "nuc"; })[0];
+    nucDef.vals.forEach(function (v) { counts[v] = searchCount(defs, nucDef, v); });
+    var h = '<div class="eyebrow">Nucleus</div><div class="nzmap pick">' + nucleiMap(state.lib, { counts: counts, on: on.nuc || [] }) + "</div>";
+    defs.forEach(function (d) {
+      if (d.key === "nuc") return;
+      var sel = on[d.key] || [];
+      if (d.key === "year") {
+        var ns = d.vals.map(function (v) { return searchCount(defs, d, v); }), top = Math.max.apply(null, ns.concat([1]));
+        h += '<div class="facet"><div class="eyebrow">' + esc(d.label) + '</div><div class="years" role="group" aria-label="Filter by year of the last run">' + d.vals.map(function (v, i) {
+          return '<button type="button" data-sf="year" data-sv="' + esc(v) + '" aria-pressed="' + (sel.indexOf(v) >= 0) + '" aria-label="' + esc(v) + ", " + plural(ns[i], "family", "families") + '"><span class="bar" style="height:' + (ns[i] ? Math.max(4, ns[i] / top * 48) : 2) + 'px"></span><span>' + esc(v) + "</span></button>";
+        }).join("") + "</div></div>";
+        return;
+      }
+      var rows = d.vals.map(function (v) {
+        var n = searchCount(defs, d, v);
+        return '<button type="button" class="frow' + (n ? "" : " zero") + '" data-sf="' + d.key + '" data-sv="' + esc(v) + '" aria-pressed="' + (sel.indexOf(v) >= 0) + '"><span class="box" aria-hidden="true"></span><span class="lbl' + (d.mono ? " mono" : "") + '">' + (d.show ? d.show(v) : d.key === "status" ? '<span class="dot st-' + esc(v) + '"></span> ' + esc(v) : esc(v)) + '</span><span class="c">' + n + "</span></button>";
+      });
+      if (d.key === "col") {
+        // Columns under their group; the group row picks all of them.
+        var cols = (CAT.matrix || {})[state.lib] || [], groups = uniq(cols.map(function (c) { return c.group; }));
+        rows = [];
+        groups.forEach(function (g) {
+          var keys = cols.filter(function (c) { return c.group === g && d.vals.indexOf(c.key) >= 0; }).map(function (c) { return c.key; });
+          if (!keys.length) return;
+          var all = keys.every(function (k) { return sel.indexOf(k) >= 0; });
+          var n = families(state.lib).filter(function (f) { return searchPasses(f, defs, "col") && keys.indexOf(colKey(state.lib, f)) >= 0; }).length;
+          if (keys.length > 1) rows.push('<button type="button" class="frow grp' + (n ? "" : " zero") + '" data-sgrp="' + esc(keys.join("|")) + '" aria-pressed="' + all + '"><span class="box" aria-hidden="true"></span><span class="lbl">' + esc(g) + '</span><span class="c">' + n + "</span></button>");
+          keys.forEach(function (k) {
+            var m = searchCount(defs, d, k);
+            rows.push('<button type="button" class="frow' + (keys.length > 1 ? " sub" : "") + (m ? "" : " zero") + '" data-sf="col" data-sv="' + esc(k) + '" aria-pressed="' + (sel.indexOf(k) >= 0) + '"><span class="box" aria-hidden="true"></span><span class="lbl">' + d.show(k) + '</span><span class="c">' + m + "</span></button>");
+          });
+        });
+      }
+      h += '<div class="facet" role="group" aria-label="' + esc(d.label) + '"><div class="eyebrow">' + esc(d.label) + "</div>" + rows.join("") + "</div>";
+    });
+    $("rail").innerHTML = h;
+    typeset($("rail"));
+  }
+
+  function searchRow(f) {
+    var h = f.head, last = f.rows.filter(function (r) { return r.run_datetime === f.latest; })[0] || h;
+    return '<a class="srow" href="' + route(state.lib, "f", f.key) + '"><span class="nuc">' + nucHtml(f.nucleus) + "</span>" +
+      '<span class="o">' + obsTex(h) + (h.reference_nucleus && h.reference_nucleus !== f.nucleus ? ' <span class="hint">vs ' + nucHtml(h.reference_nucleus) + "</span>" : "") + "</span>" +
+      '<span class="hint">' + stateHtml(h) + (h.reference_convention ? " · " + esc(h.reference_convention) : "") + "</span>" +
+      '<span class="val">' + valTex(h) + (h.units ? ' <span class="hint">' + esc(units(h.units)) + "</span>" : "") + "</span>" +
+      '<span class="pot">' + statusDot(h) + esc(f.potentials.join(", ")) + "</span>" +
+      '<span class="mono set">' + esc(h.selection_set) + "</span>" +
+      '<span class="n">' + f.rows.length + "</span>" +
+      '<span class="d">' + esc(last.run_date_label || "") + "</span></a>";
+  }
+  function searchSort(list, defs) {
+    var S = state.search.sort, cols = ((CAT.matrix || {})[state.lib] || []).map(function (c) { return c.key; });
+    var key = {
+      nuc: function (a, b) { return nucOrder(a.nucleus, b.nucleus); },
+      obs: function (a, b) { return (cols.indexOf(colKey(state.lib, a)) - cols.indexOf(colKey(state.lib, b))) || String(a.head.observable).localeCompare(String(b.head.observable)); },
+      val: function (a, b) { return (a.head.median == null ? Infinity : a.head.median) - (b.head.median == null ? Infinity : b.head.median); },
+      pot: function (a, b) { return String(a.potentials.join()).localeCompare(String(b.potentials.join())); },
+      n: function (a, b) { return a.rows.length - b.rows.length; },
+      date: function (a, b) { return String(a.latest).localeCompare(String(b.latest)); }
+    }[S.key];
+    var base = families(state.lib);
+    return list.slice().sort(function (a, b) { return S.dir * key(a, b) || base.indexOf(a) - base.indexOf(b); });
+  }
+  function searchTh(key, label, right) {
+    var S = state.search.sort, on = S.key === key;
+    return '<span role="columnheader"' + (right ? ' class="r"' : "") + (on ? ' aria-sort="' + (S.dir > 0 ? "ascending" : "descending") + '"' : "") + '><button type="button" class="sort' + (on ? " on" : "") + '" data-ssort="' + key + '">' + label + ' <span class="arr" aria-hidden="true">' + (on ? (S.dir > 0 ? "↑" : "↓") : "↕") + "</span></button></span>";
+  }
+
+  // Redraws everything but the search box, so typing keeps its focus.
+  function drawSearch() {
+    var defs = searchDefs(state.lib), on = state.search.on;
+    renderSearchRail(defs);
+    var list = searchSort(families(state.lib).filter(function (f) { return searchPasses(f, defs); }), defs);
+    var chips = [];
+    defs.forEach(function (d) { (on[d.key] || []).forEach(function (v) { chips.push('<button type="button" class="chip on" data-sx="' + d.key + '" data-sv="' + esc(v) + '" aria-label="Remove filter: ' + esc(d.label + " " + v) + '">' + (d.show ? d.show(v) : esc(v)) + ' <span aria-hidden="true">×</span></button>'); }); });
+    var any = chips.length || state.search.q;
+    $("sr-sum").innerHTML = '<b>' + plural(list.length, "family", "families") + "</b> " + '<span class="hint">match</span>' + chips.join("") + (any ? '<button type="button" class="chip" data-sclear="1">Clear all</button>' : "") + '<span class="spacer"></span><button type="button" class="chip" data-scopy="1">Copy link to this view</button>';
+    var h = '<div class="srow head" role="row">' + searchTh("nuc", "Nucleus") + searchTh("obs", "Observable") + '<span role="columnheader">State</span>' + searchTh("val", "Headline") + searchTh("pot", "Potential") + '<span role="columnheader">Selection set</span>' + searchTh("n", "Results", true) + searchTh("date", "Last run", true) + "</div>";
+    h += list.length ? list.map(searchRow).join("") : '<p class="empty">No family matches. Remove a filter or change the words.</p>';
+    $("sr-list").innerHTML = h;
+    typeset($("sr-sum")); typeset($("sr-list"));
+    syncSearchHash();
+  }
+
+  var focusSearch = false;
+  function renderSearch() {
+    var counts = {};
+    LIBS.forEach(function (l) { counts[l] = families(l).length; });
+    var h = '<div class="stack"><div class="intro"><div class="eyebrow">Find a family</div><h1 class="caps" style="margin-top:8px">Search</h1></div>';
+    h += '<div class="sbar"><label class="sbox"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/></svg><span class="sr">Search</span><input id="sq" type="search" autocomplete="off" placeholder="Nucleus, observable, state, potential, tag or note" value="' + esc(state.search.q) + '"></label>';
+    h += '<div class="seg big" role="group" aria-label="Library">' + ["legacy", "modern"].map(function (l) { return '<button type="button" data-slib="' + l + '" data-lib-tone="' + l + '" aria-pressed="' + (state.lib === l) + '">' + libName(l) + " " + counts[l] + "</button>"; }).join("") + "</div></div>";
+    h += '<div class="ssum" id="sr-sum"></div><section class="panel slist" id="sr-list" role="table" aria-label="Matching families"></section></div>';
+    $("main").innerHTML = h;
+    drawSearch();
+    if (focusSearch) { focusSearch = false; var box = $("sq"); box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
+  }
+  function goSearch() {
+    var lib = state.lib === "papers" ? lastLib : state.lib;
+    if (state.view === "search") { $("sq").focus(); return; }
+    focusSearch = true;
+    location.hash = lastSearch[lib] || "#" + lib + "/search";
+  }
+
   // One entry per state: the families of that state for each observable,
   // the primary first.
   function statesOf(fams) {
@@ -565,7 +754,7 @@
         list.sort(primaryOrder);
         var f = list[0], r = f.head;
         return '<td><a href="' + route(lib, "f", f.key) + '">' + valTex(r) + '<span class="m">' + statusDot(r) + esc(r.potential || "") + "</span></a>" +
-          (list.length > 1 ? '<span class="var">+' + plural(list.length - 1, "variant", "variants") + ": " + list.slice(1).map(function (v) { return '<a href="' + route(lib, "f", v.key) + '">' + valTex(v.head) + "</a>"; }).join(", ") + "</span>" : "") + "</td>";
+          (list.length > 1 ? '<span class="var">+' + plural(list.length - 1, "variant", "variants") + ": " + list.slice(1).map(function (v) { return '<a href="' + route(lib, "f", v.key) + '" title="' + esc(v.head.reference_convention || v.key) + '">' + valTex(v.head) + "</a>"; }).join(", ") + "</span>" : "") + "</td>";
       }).join("");
       h += '<td class="n">' + n + "</td></tr>";
     });
@@ -1044,10 +1233,11 @@
 
   // ---- routing ---------------------------------------------------------
 
+  var lastLib = "modern";
   function decode(text) { try { return decodeURIComponent(text || ""); } catch (err) { return ""; } }
   function parseHash() {
     var parts = location.hash.replace(/^#/, "").split("/");
-    state.nuc = null; state.fam = null; state.sel = null; state.paper = null;
+    state.nuc = null; state.fam = null; state.sel = null; state.paper = null; state.view = null;
     if (parts[0] === "papers") {
       state.lib = "papers";
       if (parts[1] === "p" && parts[2]) state.paper = decode(parts[2]);
@@ -1056,7 +1246,8 @@
     }
     var lib = LIBS.indexOf(parts[0]) >= 0 ? parts[0] : "modern";
     var kind = parts[1], key = decode(parts.slice(2).join("/"));
-    state.lib = lib;
+    state.lib = lastLib = lib;
+    if (kind === "search") { state.view = "search"; state.search = parseSearch(parts.slice(2).join("/")); lastSearch[lib] = location.hash; return; }
     if (kind === "n" && key) state.nuc = key;
     else if (kind === "f" && key) { var f = family(lib, key); state.fam = key; state.nuc = f ? f.nucleus : null; }
     else if (kind === "r" && BY_ID[key]) { var r = BY_ID[key]; state.lib = r.lineage; state.sel = key; state.fam = r.family; state.nuc = r.nucleus; }
@@ -1065,6 +1256,10 @@
   function render() {
     document.body.setAttribute("data-lib", state.lib);
     document.querySelectorAll("#libs button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-lib") === state.lib)); });
+    var find = $("find"), slib = state.lib === "papers" ? lastLib : state.lib;
+    find.setAttribute("href", lastSearch[slib] || "#" + slib + "/search");
+    find.classList.toggle("on", state.view === "search");
+    if (state.view === "search") { renderSearch(); renderInspector(); return; }
     renderRail();
     if (state.lib === "papers") { if (state.paper) renderPaper(); else renderPapers(); }
     else if (state.fam) renderFamily(); else if (state.nuc) renderNucleus(); else renderOverview();
@@ -1077,7 +1272,7 @@
   var lastView = null;
   window.addEventListener("hashchange", function () {
     parseHash(); render();
-    var view = state.lib + "|" + (state.paper || state.fam || state.nuc || "");
+    var view = state.lib + "|" + (state.view || state.paper || state.fam || state.nuc || "");
     if (view !== lastView) $("main").scrollTop = 0;
     lastView = view;
   });
@@ -1096,8 +1291,32 @@
       openViewer(images, images.map(function (x) { return x.key; }).indexOf(img.getAttribute("data-pimg")));
       return;
     }
+    var cellPick = event.target.closest("[data-snuc]");
+    if (cellPick) { toggleSearch("nuc", cellPick.getAttribute("data-snuc")); return; }
     var t = event.target.closest("button, .pt, [data-viewer]");
     if (!t) return;
+    if (t.hasAttribute("data-sf")) { toggleSearch(t.getAttribute("data-sf"), t.getAttribute("data-sv")); return; }
+    if (t.hasAttribute("data-sx")) { toggleSearch(t.getAttribute("data-sx"), t.getAttribute("data-sv")); return; }
+    if (t.hasAttribute("data-sgrp")) {
+      var keys = t.getAttribute("data-sgrp").split("|"), cur = state.search.on.col || [];
+      var all = keys.every(function (k) { return cur.indexOf(k) >= 0; });
+      state.search.on.col = all ? cur.filter(function (k) { return keys.indexOf(k) < 0; }) : uniq(cur.concat(keys));
+      drawSearch(); return;
+    }
+    if (t.hasAttribute("data-sclear")) { state.search.on = {}; state.search.q = ""; $("sq").value = ""; drawSearch(); return; }
+    if (t.hasAttribute("data-scopy")) { copyText(location.href, "link"); return; }
+    if (t.hasAttribute("data-ssort")) {
+      var sk = t.getAttribute("data-ssort"), S = state.search.sort;
+      state.search.sort = S.key === sk ? { key: sk, dir: -S.dir } : { key: sk, dir: sk === "date" || sk === "n" ? -1 : 1 };
+      drawSearch(); return;
+    }
+    if (t.hasAttribute("data-slib")) {
+      // Keep the words and the filters that still mean something there.
+      var to = t.getAttribute("data-slib"), keep = {}, defs = searchDefs(to);
+      defs.forEach(function (d) { var v = (state.search.on[d.key] || []).filter(function (x) { return d.vals.indexOf(x) >= 0; }); if (v.length) keep[d.key] = v; });
+      state.search.on = keep;
+      location.hash = searchHash(to); return;
+    }
     if (t.hasAttribute("data-viewer")) { if (event.target === t) { viewer = null; drawViewer(); } return; }
     if (t.hasAttribute("data-shut")) { viewer = null; drawViewer(); return; }
     if (t.hasAttribute("data-step")) { viewer.index = (viewer.index + Number(t.getAttribute("data-step")) + viewer.images.length) % viewer.images.length; drawViewer(); return; }
@@ -1141,7 +1360,22 @@
     if (t.hasAttribute("data-zoom")) { state.zoom = t.getAttribute("data-zoom") === "on"; redrawFamily(); }
   });
 
+  function toggleSearch(key, value) {
+    var on = state.search.on[key] = state.search.on[key] || [], at = on.indexOf(value);
+    if (at >= 0) on.splice(at, 1); else on.push(value);
+    if (!on.length) delete state.search.on[key];
+    drawSearch();
+  }
+  document.addEventListener("input", function (event) {
+    if (event.target.id !== "sq") return;
+    state.search.q = event.target.value;
+    drawSearch();
+  });
+
   document.addEventListener("keydown", function (event) {
+    var typing = event.target.closest && event.target.closest("input, textarea, select");
+    if (event.key === "/" && !typing && !viewer) { event.preventDefault(); goSearch(); return; }
+    if ((event.key === "Enter" || event.key === " ") && event.target.hasAttribute && event.target.hasAttribute("data-snuc")) { event.preventDefault(); toggleSearch("nuc", event.target.getAttribute("data-snuc")); return; }
     if (viewer) {
       if (event.key === "Escape") { viewer = null; drawViewer(); }
       else if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
@@ -1188,6 +1422,6 @@
 
   labelTheme();
   parseHash();
-  lastView = state.lib + "|" + (state.paper || state.fam || state.nuc || "");
+  lastView = state.lib + "|" + (state.view || state.paper || state.fam || state.nuc || "");
   render();
 })();

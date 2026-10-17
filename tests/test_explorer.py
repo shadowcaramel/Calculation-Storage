@@ -355,3 +355,36 @@ class TestInBrowser:
             assert page.locator(".famrow").count() == 2
             browser.close()
         assert errors == []
+
+    def test_search_filters_and_keeps_its_view_in_the_link(self, library):
+        sync_api = pytest.importorskip("playwright.sync_api")
+        frame, _ = build_catalog(library)
+        page_path = build_explorer(library, frame)
+        with sync_api.sync_playwright() as pw:
+            try:
+                browser = pw.chromium.launch(executable_path=os.environ.get("EXPLORER_TEST_CHROMIUM") or None)
+            except Exception as exc:  # no browser installed for this playwright
+                pytest.skip(f"no Chromium for Playwright: {exc}")
+            page = browser.new_page()
+            errors: list[str] = []
+            page.on("pageerror", lambda exc: errors.append(str(exc)))
+            base = page_path.as_uri()
+            page.goto(base + "#modern")
+            # "/" opens the search with the box focused.
+            page.keyboard.press("/")
+            page.locator("#sq").wait_for()
+            assert page.evaluate("document.activeElement.id") == "sq"
+            assert page.locator("#sr-sum b").inner_text() == "2 families"
+            page.keyboard.type("16C")
+            assert page.locator("#sr-sum b").inner_text() == "1 family"
+            assert "q=16C" in page.evaluate("location.hash")
+            page.locator('button[data-sclear]').click()
+            page.locator('[data-snuc="6He"]').click()
+            assert page.locator("a.srow:not(.head)").count() == 1
+            # The hash carries the view, so a link reopens it.
+            page.goto(base + "#modern")
+            page.goto(base + "#modern/search/col=other")
+            assert page.locator("#sr-sum b").inner_text() == "1 family"
+            assert "16" in page.locator("a.srow .nuclide sup").all_inner_texts()
+            browser.close()
+        assert errors == []
