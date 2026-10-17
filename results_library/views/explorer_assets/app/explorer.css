@@ -35,6 +35,7 @@
   --scrim: rgba(20, 20, 20, 0.6);
   --bar: #141414;
   --on-bar: #f3efe6;
+  --rail: 336px; /* the brand block in the top bar shares this width, so their borders line up */
   --display: "Montserrat", "Century Gothic", "Futura", system-ui, sans-serif;
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -96,13 +97,13 @@ body[data-lib="papers"] a { text-decoration-color: var(--yellow); }
 
 .app { display: grid; grid-template-rows: auto 1fr; height: 100%; }
 .top { display: flex; align-items: stretch; gap: 0; background: var(--bar); color: var(--on-bar); min-height: 52px; flex-wrap: wrap; }
-.brand { display: flex; align-items: center; gap: 12px; padding: 0 20px; font: 800 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; color: var(--on-bar); text-decoration: none; }
+.brand { display: flex; align-items: center; gap: 12px; flex: 0 0 var(--rail); box-sizing: border-box; padding: 0 20px; border-right: 2px solid var(--on-bar); font: 800 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; color: var(--on-bar); text-decoration: none; }
 .brand .mark { display: inline-flex; align-items: center; gap: 3px; }
 .brand .mark i { display: block; width: 14px; height: 14px; }
 .brand .mark .c { background: var(--blue); border-radius: 50%; }
 .brand .mark .s { background: var(--red); }
 .brand .mark .t { background: var(--yellow); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
-.libs { display: flex; align-items: stretch; border-left: 2px solid var(--on-bar); }
+.libs { display: flex; align-items: stretch; }
 .libs button { border: 0; border-right: 2px solid var(--on-bar); background: transparent; color: var(--on-bar); padding: 0 22px; cursor: pointer; font: 700 12px/1 var(--display); letter-spacing: 0.1em; text-transform: uppercase; }
 .libs button:hover { background: rgba(255, 255, 255, 0.08); }
 .libs button[aria-pressed="true"][data-lib="modern"] { background: var(--blue); color: var(--on-blue); }
@@ -115,8 +116,8 @@ body[data-lib="papers"] a { text-decoration-color: var(--yellow); }
 .theme { border: 2px solid var(--on-bar); background: transparent; color: var(--on-bar); padding: 6px 10px; cursor: pointer; font: 700 11px/1 var(--display); letter-spacing: 0.1em; text-transform: uppercase; }
 .theme:hover { background: var(--on-bar); color: var(--bar); }
 
-.body { display: grid; grid-template-columns: 336px minmax(0, 1fr); min-height: 0; }
-.body.has-insp { grid-template-columns: 336px minmax(0, 1fr) 420px; }
+.body { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); min-height: 0; }
+.body.has-insp { grid-template-columns: var(--rail) minmax(0, 1fr) 420px; }
 .rail { border-right: 2px solid var(--rule); overflow: auto; padding: 18px 16px 32px; display: flex; flex-direction: column; gap: 16px; background: var(--surface); }
 .main { overflow: auto; padding: 28px 32px 40px; min-width: 0; display: flex; flex-direction: column; }
 .main > .stack { flex: 1 0 auto; }
@@ -358,13 +359,16 @@ table.grid td.linked.sel button { background: var(--acc); color: var(--on-acc); 
 .empty { color: var(--muted); padding: 24px 16px; }
 
 @media (max-width: 1200px) {
-  .body.has-insp { grid-template-columns: 248px minmax(0, 1fr); }
+  :root { --rail: 260px; }
+  .brand { gap: 8px; padding: 0 14px; font-size: 12px; }
+  .body.has-insp { grid-template-columns: var(--rail) minmax(0, 1fr); }
   .body.has-insp .insp { position: fixed; right: 0; top: 0; bottom: 0; width: min(440px, 100%); z-index: 20; border-left: 4px solid var(--ink); }
-  .body { grid-template-columns: 248px minmax(0, 1fr); }
+  .body { grid-template-columns: var(--rail) minmax(0, 1fr); }
   .hero { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
   .body, .body.has-insp { grid-template-columns: minmax(0, 1fr); }
+  .brand { flex-basis: auto; }
   .rail { display: none; }
   .main { padding: 20px 16px 32px; }
   .famrow, .paperrow { grid-template-columns: minmax(0, 1fr); }

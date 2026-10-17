@@ -71,7 +71,8 @@ it covers Cyrillic, so the Russian captions in papers render in the same face.
 
 * **Top bar**: ink band. The wordmark has a circle, a square and a triangle.
   The tabs (Modern, Legacy, Papers) are flat blocks; the active one fills with
-  its colour.
+  its colour. The brand block is as wide as the rail (`--rail`), so
+  the line after it continues the rail's border.
 * **Panel**: 2 px ink border, square corners. The header carries a small
   square in the accent colour and an uppercase title.
 * **Button**: 2 px ink border. On hover it inverts to ink with paper text.
