@@ -24,7 +24,7 @@ ANNOTATIONS_FILENAME = "annotations.toml"
 
 #: Keys a human may set. Anything else is reported by the lint pass, because a
 #: typo in a key would otherwise silently do nothing.
-ANNOTATION_KEYS = ("status", "title", "tags", "note", "outcome")
+ANNOTATION_KEYS = ("status", "title", "tags", "note", "outcome", "headline")
 
 #: Curation states, from exploratory to published.
 STATUSES = ("probing", "working", "published", "superseded")
@@ -75,6 +75,7 @@ def merge_annotation(record: Dict[str, Any], annotation: Mapping[str, Any]) -> D
         "tags": [],
         "note": None,
         "outcome": None,
+        "headline": False,
     }
     if not annotation:
         return merged
@@ -90,6 +91,8 @@ def merge_annotation(record: Dict[str, Any], annotation: Mapping[str, Any]) -> D
         merged["note"] = str(annotation["note"])
     if annotation.get("outcome"):
         merged["outcome"] = str(annotation["outcome"])
+    if annotation.get("headline") is True:
+        merged["headline"] = True
     return merged
 
 
@@ -106,6 +109,12 @@ def lint_annotations(
             problems.append(
                 f"{result_id}: unknown annotation key(s) {unknown}; expected any "
                 f"of {list(ANNOTATION_KEYS)}"
+            )
+
+        headline = annotation.get("headline")
+        if headline is not None and not isinstance(headline, bool):
+            problems.append(
+                f"{result_id}: headline must be true or false, got {headline!r}"
             )
 
         status = annotation.get("status")

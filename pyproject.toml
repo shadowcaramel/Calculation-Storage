@@ -31,6 +31,11 @@ include = ["results_library*", "paper_storage*"]
 results_library = [
     "views/templates/*.html",
     "views/assets/*",
+    "views/assets/katex/*",
+    "views/assets/katex/fonts/*",
+    "views/explorer_assets/*.html",
+    "views/explorer_assets/app/*",
+    "views/explorer_assets/app/fonts/*",
     "vendor/results_schema/*",
 ]
 paper_storage = [

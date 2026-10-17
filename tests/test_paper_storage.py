@@ -261,3 +261,58 @@ def test_real_publications_file_when_present():
     assert normalize_doi(citation.doi) == "10.3103/s0027134924700395"
     assert "2024" in citation.year
     assert "Machine Learning" in citation.title
+
+
+class TestExplorerView:
+    """What the explorer's Papers section reads, without writing paper-site/."""
+
+    def _read(self, tmp_path, *, median: float, compare: str = "direct", note: str = ""):
+        from paper_storage.build import read_papers
+
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        library = _library(tmp_path)
+        _write_bundle(library, median)
+        _papers(library, parsed=True, compare=compare, note=note)
+        bib = tmp_path / "my.bib"
+        bib.write_text(BIB, encoding="utf-8")
+        return library, read_papers(library, bibliography=bib)
+
+    def test_read_papers_writes_nothing(self, tmp_path):
+        library, result = self._read(tmp_path, median=-32.034)
+        assert result.ok
+        assert not (library / "paper-site").exists()
+        assert RESULT_ID in result.links
+
+    def test_paths_are_library_root_relative(self, tmp_path):
+        _library_root, result = self._read(tmp_path, median=-32.034)
+        paper = result.explorer["papers"][0]
+        assert paper["pdf"] == "papers/example/article.pdf"
+        material = paper["materials"][0]
+        assert material["image"] == "papers/example/table1.png"
+        assert material["latex"].startswith(r"\begin{tabular}")
+        assert paper["title"].startswith("Machine Learning")
+        assert paper["has_citation"] is True
+
+    def test_linked_cell_carries_the_result_and_check(self, tmp_path):
+        _library_root, result = self._read(tmp_path, median=-32.034)
+        material = result.explorer["papers"][0]["materials"][0]
+        assert material["rows"][0][1]["result"] == RESULT_ID
+        assert "result" not in material["rows"][0][0]
+        check = material["checks"][0]
+        assert check["state"] == "ok"
+        assert check["printed"] == "-32.034(4)" and check["stored"] == "-32.034"
+
+    def test_mismatch_and_derived_states(self, tmp_path):
+        _root, direct = self._read(tmp_path / "a", median=-32.5)
+        assert direct.explorer["papers"][0]["materials"][0]["checks"][0]["state"] == "mismatch"
+        assert any(i["paper"] == "example" for i in direct.explorer["issues"])
+        _root, derived = self._read(tmp_path / "b", median=-32.5, compare="derived", note="minus threshold")
+        assert derived.explorer["papers"][0]["materials"][0]["checks"][0]["state"] == "derived"
+
+    def test_missing_result_is_flagged(self, tmp_path):
+        from paper_storage.build import read_papers
+
+        library = _library(tmp_path)
+        _papers(library, parsed=True)
+        check = read_papers(library).explorer["papers"][0]["materials"][0]["checks"][0]
+        assert check["state"] == "missing" and check["stored"] == ""

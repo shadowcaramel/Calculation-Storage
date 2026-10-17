@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Calculation Storage Explorer</title>
+<script>
+// Pin a stored theme before first paint (shared with the classic site).
+try {
+  var saved = localStorage.getItem("results-theme");
+  if (saved === "dark" || saved === "light") document.documentElement.setAttribute("data-theme", saved);
+} catch (err) {}
+</script>
+<link rel="stylesheet" href="explorer/katex/katex.min.css">
+<link rel="stylesheet" href="explorer/explorer.css">
+</head>
+<body data-lib="modern">
+<div class="app">
+  <header class="top">
+    <a class="brand" href="#modern"><span class="mark" aria-hidden="true"><i class="c"></i><i class="s"></i><i class="t"></i></span>Calculation Storage</a>
+    <nav class="libs" id="libs" aria-label="Section">
+      <button type="button" data-lib="modern" aria-pressed="true">Modern</button>
+      <button type="button" data-lib="legacy" aria-pressed="false">Legacy</button>
+      <button type="button" data-lib="papers" aria-pressed="false">Papers</button>
+    </nav>
+    <span class="spacer"></span>
+    <a class="find" id="find" href="#modern/search"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="7" cy="7" r="5"/><path d="M11 11l4 4"/></svg><span>Search families</span><kbd>/</kbd></a>
+    <div class="tools">
+      <a class="toplink" href="index.html">Classic site</a>
+      <button type="button" class="theme" id="theme">Dark</button>
+    </div>
+  </header>
+  <div class="body" id="layout">
+    <aside class="rail" id="rail"></aside>
+    <main class="main" id="main">
+      <noscript><p class="empty">The explorer needs JavaScript. The classic site (index.html) works without it.</p></noscript>
+    </main>
+    <aside class="insp" id="insp" hidden></aside>
+  </div>
+</div>
+<div id="overlay"></div>
+<div class="tip" id="tip" hidden></div>
+<script src="explorer/catalog.js"></script>
+<script src="explorer/katex/katex.min.js"></script>
+<script src="explorer/explorer.js"></script>
+</body>
+</html>
