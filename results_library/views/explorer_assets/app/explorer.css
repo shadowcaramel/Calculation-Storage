@@ -215,6 +215,44 @@ table.matrix { border-collapse: collapse; width: 100%; min-width: 860px; table-l
 .scheme .lv { stroke: var(--acc); stroke-width: 2.5; }
 .scheme text { fill: var(--muted); font: 600 9.5px var(--display); }
 
+/* Nucleus page: level scheme beside the states table, with a view switch. */
+.nuchead { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 32px; }
+.nuchead > div:first-child { flex: 1 1 360px; }
+.seg { display: flex; }
+.seg button { min-height: 38px; padding: 0 16px; border: 2px solid var(--ink); background: transparent; color: var(--ink); font: 700 11px/1 var(--display); letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; }
+.seg button + button { border-left: 0; }
+.seg button:hover { background: var(--sunk); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.nucgrid { display: grid; grid-template-columns: fit-content(520px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.lscheme { display: block; overflow: visible; margin: 0 auto; }
+.lscheme .grid line { stroke: var(--hair); }
+.lscheme .axis { stroke: var(--muted); stroke-width: 1.5; }
+.lscheme .gs { stroke: var(--ink); stroke-width: 2; }
+.lscheme .ax text { fill: var(--muted); font: 600 10.5px var(--display); font-variant-numeric: tabular-nums; }
+.lscheme .ax .gsl { fill: var(--ink); font-weight: 700; }
+.lscheme .jp { fill: var(--ink); font: 700 13px var(--display); }
+.lscheme .band { fill: var(--acc); fill-opacity: 0.16; }
+.lscheme .lv { stroke: var(--acc); stroke-width: 3; }
+.lscheme .lvl text { fill: var(--ink); font: 600 11px var(--display); font-variant-numeric: tabular-nums lining-nums; }
+.lscheme .lvl .n { fill: var(--muted); }
+.lscheme .lvl:hover .band { fill-opacity: 0.32; }
+.lscheme .lvl:hover text { text-decoration: underline; }
+table.states { border-collapse: collapse; width: 100%; font-size: 13px; }
+.states thead th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--rule); font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+.states thead th:first-child { padding-left: 16px; font: 700 10.5px/1.2 var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.states .u { color: var(--muted); font-weight: 500; font-size: 12px; }
+.states .n { text-align: right; padding-right: 16px; font: 600 12.5px var(--display); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.states thead th.n { font: 700 10.5px/1.2 var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.states tbody tr { border-top: 1px solid var(--hair); }
+.states tbody th { text-align: left; padding: 10px 12px 10px 16px; font: 700 15px var(--display); white-space: nowrap; }
+.states td { padding: 8px 10px; vertical-align: middle; }
+.states td > a { display: inline-flex; flex-direction: column; gap: 3px; color: var(--ink); text-decoration: none; font-size: 15px; }
+.states td > a:hover .fig { text-decoration: underline; text-decoration-color: var(--acc); text-decoration-thickness: 2px; }
+.states .m { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); }
+.states .m .dot { width: 8px; height: 8px; }
+.states .var { display: block; margin-top: 4px; font-size: 11.5px; color: var(--muted); }
+.states .var a { text-decoration: none; }
+
 /* Most recent runs: one line per day and nucleus. */
 .run { display: grid; grid-template-columns: 110px 56px minmax(0, 1fr) 100px; gap: 16px; align-items: baseline; padding: 10px 16px; border-top: 1px solid var(--hair); color: var(--ink); text-decoration: none; }
 .runs > .run:first-child { border-top: 0; }
@@ -403,6 +441,9 @@ table.grid td.linked.sel button { background: var(--acc); color: var(--on-acc); 
 .copyfallback { width: 100%; height: 140px; font: 12px var(--mono); }
 .empty { color: var(--muted); padding: 24px 16px; }
 
+@media (max-width: 1360px) {
+  .nucgrid { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 1200px) {
   :root { --rail: 260px; }
   .brand { gap: 8px; padding: 0 14px; font-size: 12px; }

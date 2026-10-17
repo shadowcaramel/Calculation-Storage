@@ -46,7 +46,7 @@
     p.loose.forEach(function (c) { (CHECKS_BY_RESULT[c.result] = CHECKS_BY_RESULT[c.result] || []).push({ paper: p, material: null, check: c }); });
   });
 
-  var state = { lib: "modern", nuc: null, fam: null, sel: null, paper: null, pot: null, facets: {}, facetFam: null, xaxis: null, zoom: true, sort: { key: "date", dir: -1 } };
+  var state = { lib: "modern", nuc: null, fam: null, sel: null, paper: null, pot: null, nview: "scheme", facets: {}, facetFam: null, xaxis: null, zoom: true, sort: { key: "date", dir: -1 } };
 
   // ---- helpers ---------------------------------------------------------
 
@@ -333,9 +333,10 @@
   }
   function shownRows(f) { return state.pot ? f.rows.filter(function (r) { return r.potential === state.pot; }) : f.rows; }
   function statusRank(r) { var i = STATUS_ORDER.indexOf(r.status); return i < 0 ? 9 : i; }
-  // Within one state, the family shown first: best status, then the plain
-  // name before its _selection variants.
-  function primaryOrder(a, b) { return (statusRank(headOf(a)) - statusRank(headOf(b))) || String(a.key).localeCompare(String(b.key)); }
+  // Within one state, the family shown first: best headline status, then the
+  // plain name before its _selection variants. Filters do not change it.
+  function primaryOrder(a, b) { return (statusRank(a.head) - statusRank(b.head)) || String(a.key).localeCompare(String(b.key)); }
+  function jpKey(lv) { return lv.J2 * 2 + (lv.parity === "-" ? 1 : 0); }
   function jLabel(lv) { return (lv.J2 % 2 ? lv.J2 + "/2" : String(lv.J2 / 2)); }
   function levelHtml(lv) { return jLabel(lv) + "<sup>" + (lv.parity === "-" ? "−" : "+") + "</sup>" + (lv.n > 1 ? " (" + lv.n + ")" : ""); }
   function levelText(lv) { return jLabel(lv) + (lv.parity === "-" ? "−" : "+") + (lv.n > 1 ? " (" + lv.n + ")" : ""); }
@@ -347,7 +348,7 @@
   // Energy up, one column per spin and parity, the ground state as the
   // baseline. Only the shape: the values are one click away.
   function miniScheme(heads) {
-    var cols = uniq(heads.map(function (r) { return r.level.J2 * 2 + (r.level.parity === "-" ? 1 : 0); })).sort(function (a, b) { return a - b; });
+    var cols = uniq(heads.map(function (r) { return jpKey(r.level); })).sort(function (a, b) { return a - b; });
     var vals = heads.map(function (r) { return r.median; });
     var lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max.apply(null, vals);
     if (hi - lo < 1e-9) hi = lo + 1;
@@ -357,7 +358,7 @@
     var s = '<svg class="scheme" viewBox="0 0 ' + W + ' 60" aria-hidden="true"><rect class="bg" x="0" y="0" width="' + W + '" height="' + (B + 4) + '"/>';
     s += '<line class="gs" x1="0" x2="' + W + '" y1="' + y(0) + '" y2="' + y(0) + '"/>';
     heads.forEach(function (r) {
-      var i = cols.indexOf(r.level.J2 * 2 + (r.level.parity === "-" ? 1 : 0)), x = 2 + i * step + (step - w) / 2;
+      var i = cols.indexOf(jpKey(r.level)), x = 2 + i * step + (step - w) / 2;
       s += '<line class="lv" x1="' + x + '" x2="' + (x + w) + '" y1="' + y(r.median) + '" y2="' + y(r.median) + '"/>';
     });
     cols.forEach(function (c, i) {
@@ -483,18 +484,125 @@
 
   // ---- nucleus ---------------------------------------------------------
 
+  // One entry per state: the families of that state for each observable,
+  // the primary first.
+  function statesOf(fams) {
+    var by = {}, list = [];
+    fams.forEach(function (f) {
+      var k = f.head.state_label;
+      if (!by[k]) { by[k] = { key: k, head: f.head, obs: {}, fams: [] }; list.push(by[k]); }
+      by[k].fams.push(f);
+      (by[k].obs[f.head.observable] = by[k].obs[f.head.observable] || []).push(f);
+    });
+    list.forEach(function (st) { Object.keys(st.obs).forEach(function (o) { st.obs[o].sort(primaryOrder); }); });
+    return list;
+  }
+  function excOf(st) { var f = (st.obs.Eexc || [])[0]; return f && f.head.level && f.head.median != null ? f : null; }
+
+  // Excitation energy against the ground state, one column per spin and
+  // parity, the uncertainty as a band. Each level links to its family.
+  function levelScheme(states) {
+    var lv = states.filter(excOf).map(function (st) { return excOf(st); });
+    var cols = uniq(lv.map(function (f) { return jpKey(f.head.level); })).sort(function (a, b) { return a - b; });
+    var lo = 0, hi = 0;
+    lv.forEach(function (f) { var r = f.head; lo = Math.min(lo, r.median - (r.err_low || 0)); hi = Math.max(hi, r.median + (r.err_high || 0)); });
+    var span = (hi - lo) || 1; hi += span * 0.05; lo -= span * 0.02;
+    var colW = 76, L = 44, T = 30, PH = 420, B = 12, W = L + cols.length * colW + 8, H = T + PH + B;
+    var y = function (e) { return T + (hi - e) / (hi - lo) * PH; };
+    var s = '<svg class="lscheme" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Level scheme: ' + plural(lv.length, "state", "states") + ' by excitation energy">';
+    var t = niceTicks(lo, hi, 7);
+    s += '<g class="grid">' + t.ticks.map(function (v) { return '<line x1="' + L + '" x2="' + W + '" y1="' + y(v) + '" y2="' + y(v) + '"/>'; }).join("") + "</g>";
+    s += '<g class="ax">' + t.ticks.map(function (v) { return '<text x="' + (L - 8) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + tickLabel(v, t.step) + "</text>"; }).join("");
+    s += '<text x="' + (L - 8) + '" y="' + (y(0) + 17) + '" text-anchor="end" class="gsl">g.s.</text></g>';
+    s += '<line class="axis" x1="' + L + '" x2="' + L + '" y1="' + T + '" y2="' + (T + PH) + '"/><line class="gs" x1="' + L + '" x2="' + W + '" y1="' + y(0) + '" y2="' + y(0) + '"/>';
+    cols.forEach(function (c, i) {
+      s += '<text class="jp" x="' + (L + i * colW + colW / 2) + '" y="18" text-anchor="middle">' + jLabel({ J2: Math.floor(c / 2) }) + '<tspan dy="-5" font-size="9">' + (c % 2 ? "−" : "+") + "</tspan></text>";
+    });
+    cols.forEach(function (c, i) {
+      var here = lv.filter(function (f) { return jpKey(f.head.level) === c; }).sort(function (a, b) { return a.head.median - b.head.median; });
+      var x0 = L + i * colW + 12, w = colW - 24, lastLabel = Infinity;
+      here.forEach(function (f) {
+        var r = f.head, ym = y(r.median);
+        // A label that would touch the one below it goes under its own bar.
+        var ly = ym - 6;
+        if (lastLabel - ly < 13) ly = ym + 15;
+        lastLabel = ly;
+        s += '<a href="' + route(state.lib, "f", f.key) + '" class="lvl"><title>' + esc(levelText(r.level) + ": " + r.value_label + " MeV") + "</title>";
+        s += '<rect class="band" x="' + x0 + '" y="' + y(r.median + (r.err_high || 0)) + '" width="' + w + '" height="' + Math.max(1, y(r.median - (r.err_low || 0)) - y(r.median + (r.err_high || 0))) + '"/>';
+        s += '<line class="lv" x1="' + (x0 - 5) + '" x2="' + (x0 + w + 5) + '" y1="' + ym + '" y2="' + ym + '"/>';
+        s += '<text x="' + (x0 - 5) + '" y="' + ly + '">' + printed(r) + (r.level.n > 1 ? ' <tspan class="n">(' + r.level.n + ")</tspan>" : "") + "</text></a>";
+      });
+    });
+    return s + "</svg>";
+  }
+
+  // The states of a nucleus as rows, its observables (all but the catch-all
+  // column) across; lowest excitation energy first.
+  function statesTable(states, lib) {
+    var cols = ((CAT.matrix || {})[lib] || []).filter(function (c) { return c.key !== "other" && states.some(function (st) { return c.observables.some(function (o) { return st.obs[o]; }); }); });
+    var rows = states.filter(function (st) { return cols.some(function (c) { return c.observables.some(function (o) { return st.obs[o]; }); }); });
+    rows.sort(function (a, b) {
+      var ea = excOf(a), eb = excOf(b);
+      if (ea && eb) return ea.head.median - eb.head.median;
+      if (ea || eb) return ea ? -1 : 1;
+      var la = a.head.level, lb = b.head.level;
+      return la && lb ? (jpKey(la) - jpKey(lb)) || (la.n - lb.n) : String(a.key).localeCompare(String(b.key));
+    });
+    var oneT = uniq(rows.map(function (st) { return st.head.level ? st.head.level.T2 : null; })).length === 1;
+    var h = '<div class="tablewrap"><table class="states"><thead><tr><th scope="col">State</th>';
+    h += cols.map(function (c) {
+      var f = rows.map(function (st) { for (var i = 0; i < c.observables.length; i++) if (st.obs[c.observables[i]]) return st.obs[c.observables[i]][0]; return null; }).filter(Boolean)[0];
+      var ref = f && f.head.reference_nucleus ? (f.head.reference_nucleus === f.nucleus ? "vs g.s." : "vs " + nucHtml(f.head.reference_nucleus)) : "";
+      return '<th scope="col">' + (c.latex ? tex(c.latex, c.label) : esc(c.label)) + ' <span class="u">' + [ref, esc(units(c.units))].filter(Boolean).join(", ") + "</span></th>";
+    }).join("") + '<th scope="col" class="n">Results</th></tr></thead><tbody>';
+    rows.forEach(function (st) {
+      var n = st.fams.reduce(function (a, f) { return a + f.rows.length; }, 0);
+      h += '<tr><th scope="row">' + (st.head.level && oneT ? levelHtml(st.head.level) : stateTex(st.head)) + "</th>";
+      h += cols.map(function (c) {
+        var list = [];
+        c.observables.forEach(function (o) { list = list.concat(st.obs[o] || []); });
+        if (!list.length) return '<td><span class="mx-none">–</span></td>';
+        list.sort(primaryOrder);
+        var f = list[0], r = f.head;
+        return '<td><a href="' + route(lib, "f", f.key) + '">' + valTex(r) + '<span class="m">' + statusDot(r) + esc(r.potential || "") + "</span></a>" +
+          (list.length > 1 ? '<span class="var">+' + plural(list.length - 1, "variant", "variants") + ": " + list.slice(1).map(function (v) { return '<a href="' + route(lib, "f", v.key) + '">' + valTex(v.head) + "</a>"; }).join(", ") + "</span>" : "") + "</td>";
+      }).join("");
+      h += '<td class="n">' + n + "</td></tr>";
+    });
+    return h + "</tbody></table></div>";
+  }
+
   function renderNucleus() {
     var fams = families(state.lib).filter(function (f) { return f.nucleus === state.nuc; });
     var label = nucHtml(state.nuc);
     if (!fams.length) return ($("main").innerHTML = '<p class="empty">No ' + state.lib + " results for " + label + '. <a href="' + route(state.lib) + '">Back to the overview</a>.</p>');
     var total = fams.reduce(function (a, f) { return a + f.rows.length; }, 0);
-    var h = '<div class="stack"><div><div class="crumbs"><a href="' + route(state.lib) + '">' + libName(state.lib) + "</a><span>/</span><span>" + label + "</span></div>";
-    h += "<h1>" + label + '</h1><p class="lede">' + plural(fams.length, "family", "families") + ", " + plural(total, "result", "results") + ". Each row is one state and observable with its headline value. The strip shows where every other variant lands.</p></div>";
-    var byState = {}, order = [];
-    fams.forEach(function (f) { var k = f.head.state_label; if (!byState[k]) { byState[k] = []; order.push(k); } byState[k].push(f); });
-    h += '<div class="panel fams">';
-    order.forEach(function (k) { h += '<div class="statedivider">' + stateTex(byState[k][0].head) + "</div>" + byState[k].map(famRow).join(""); });
+    var states = statesOf(fams);
+    var hasScheme = states.filter(excOf).length >= 2;
+    var view = hasScheme && state.nview !== "list" ? "scheme" : "list";
+    var Ts = uniq(states.map(function (st) { return st.head.level ? st.head.level.T2 : null; }));
+    var pots = uniq(fams.map(function (f) { return f.head.potential; }));
+    var facts = plural(fams.length, "family", "families") + ", " + plural(total, "result", "results") + ".";
+    if (Ts.length === 1 && states.every(function (st) { return st.head.level; })) facts += " All states have <i>T</i> = " + (Ts[0] % 2 ? Ts[0] + "/2" : Ts[0] / 2) + ".";
+    if (pots.length === 1) facts += " " + esc(pots[0]) + ".";
+    var h = '<div class="stack"><div class="nuchead"><div><div class="crumbs"><a href="' + route(state.lib) + '">' + libName(state.lib) + "</a><span>/</span><span>" + label + "</span></div>";
+    h += "<h1>" + label + '</h1><p class="lede">' + facts + (view === "list" ? " Each row is one state and observable with its headline value. The strip shows where every other variant lands." : "") + "</p></div>";
+    if (hasScheme) h += '<div class="seg" role="group" aria-label="View"><button type="button" data-nview="scheme" aria-pressed="' + (view === "scheme") + '">Level scheme</button><button type="button" data-nview="list" aria-pressed="' + (view === "list") + '">Family list</button></div>';
     h += "</div>";
+    if (view === "scheme") {
+      h += '<div class="nucgrid"><section class="panel"><div class="panel-h"><h2>Level scheme</h2><span class="hint">Excitation energy, one column per <i>J</i><sup>π</sup>. Bands are the uncertainty.</span></div><div class="panel-b tablewrap">' + levelScheme(states) + "</div></section>";
+      h += '<section class="panel"><div class="panel-h"><h2>States</h2><span class="hint">Headline values, lowest excitation energy first.</span></div>' + statesTable(states, state.lib) + "</section></div>";
+      var listed = {};
+      ((CAT.matrix || {})[state.lib] || []).forEach(function (c) { if (c.key !== "other") c.observables.forEach(function (o) { listed[o] = 1; }); });
+      var rest = fams.filter(function (f) { return !listed[f.head.observable]; });
+      if (rest.length) h += '<div class="panel fams"><div class="panel-h"><h2>Other families</h2></div>' + rest.map(famRow).join("") + "</div>";
+    } else {
+      var byState = {}, order = [];
+      fams.forEach(function (f) { var k = f.head.state_label; if (!byState[k]) { byState[k] = []; order.push(k); } byState[k].push(f); });
+      h += '<div class="panel fams">';
+      order.forEach(function (k) { h += '<div class="statedivider">' + stateTex(byState[k][0].head) + "</div>" + byState[k].map(famRow).join(""); });
+      h += "</div>";
+    }
     var other = state.lib === "legacy" ? "modern" : "legacy";
     var twins = families(other).filter(function (f) { return f.nucleus === state.nuc; });
     if (twins.length) h += '<p class="hint">' + label + " also has " + plural(twins.length, "family", "families") + ' in the <a href="' + route(other, "n", state.nuc) + '">' + other + " library</a>.</p>";
@@ -1022,6 +1130,7 @@
       redrawFamily(); return;
     }
     if (t.hasAttribute("data-reset")) { state.facets = {}; redrawFamily(); return; }
+    if (t.hasAttribute("data-nview")) { state.nview = t.getAttribute("data-nview"); renderNucleus(); typeset($("main")); return; }
     if (t.hasAttribute("data-pot")) { state.pot = t.getAttribute("data-pot") || null; renderOverview(); typeset($("main")); return; }
     if (t.hasAttribute("data-sort")) {
       var key = t.getAttribute("data-sort");

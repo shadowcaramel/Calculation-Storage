@@ -19,7 +19,7 @@ from results_library.views.app import (
     headline_ids,
     matrix_columns,
 )
-from results_schema.models import Variant
+from results_schema.models import Observable, Reference, ResultRecord, StateRecord, Subject, Variant
 
 from tests.test_results_library import _c16_transition, _computed, _he6_record, _place
 
@@ -264,6 +264,20 @@ class TestDataFile:
         assert (library / "index.html").is_file()
 
 
+def _excitation(J2: int, parity: str, median: float, run_stamp: str) -> ResultRecord:
+    return ResultRecord.build(
+        subject=Subject.single("6He", StateRecord(J2=J2, parity=parity, T2=2, index=1)),
+        observable=Observable(slug="Eexc", name="Eexc", latex="$E_{exc}$", units="MeV"),
+        computed=_computed(median=median),
+        run_stamp=run_stamp,
+        observable_path_slug="Eexc_vs_gs",
+        reference=Reference(nucleus="6He", alias="gs"),
+        variant=Variant(selection_set="final", bounds={"Nmax": [2, 6], "hOmega": [13, 40]}, potential="Daejeon16"),
+        artifacts={"histogram_plot": "histogram.png"},
+        available=["histogram"],
+    )
+
+
 class TestInBrowser:
     """Open the built page in a headless browser and walk the main routes.
 
@@ -307,7 +321,37 @@ class TestInBrowser:
             assert "result" in page.locator("#insp .eyebrow").first.inner_text().lower()
             page.goto(base + "#legacy")
             assert page.locator("h1").inner_text().lower() == "legacy library"
+            assert page.locator("table.matrix").count() == 0
             page.goto(base + "#papers")
             assert page.locator("h1").inner_text().lower() == "papers"
+            browser.close()
+        assert errors == []
+
+    def test_nucleus_with_a_spectrum_opens_on_its_level_scheme(self, tmp_path):
+        sync_api = pytest.importorskip("playwright.sync_api")
+        root = tmp_path / "spectrum"
+        root.mkdir()
+        _place(root, _excitation(4, "+", 1.80, "2026-09-01_10-00-00"))
+        _place(root, _excitation(2, "-", 2.40, "2026-09-02_10-00-00"))
+        frame, _ = build_catalog(root)
+        page_path = build_explorer(root, frame)
+        with sync_api.sync_playwright() as pw:
+            try:
+                browser = pw.chromium.launch(executable_path=os.environ.get("EXPLORER_TEST_CHROMIUM") or None)
+            except Exception as exc:  # no browser installed for this playwright
+                pytest.skip(f"no Chromium for Playwright: {exc}")
+            page = browser.new_page()
+            errors: list[str] = []
+            page.on("pageerror", lambda exc: errors.append(str(exc)))
+            base = page_path.as_uri()
+            page.goto(base)
+            # Two excited states in one cell draw as a small level scheme.
+            assert page.locator("table.matrix svg.scheme").count() == 1
+            page.goto(base + "#modern/n/6He")
+            assert page.locator("svg.lscheme a.lvl").count() == 2
+            # Lowest excitation energy first.
+            assert page.locator("table.states tbody th").all_inner_texts() == ["2+", "1−"]
+            page.locator('button[data-nview="list"]').click()
+            assert page.locator(".famrow").count() == 2
             browser.close()
         assert errors == []

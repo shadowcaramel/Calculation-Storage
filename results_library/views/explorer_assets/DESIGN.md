@@ -88,6 +88,11 @@ it covers Cyrillic, so the Russian captions in papers render in the same face.
   headline value with its status mark; several states show as a small level
   scheme (excitation energies), two values, or a count and range. A potential
   filter sits in the panel header when the library has more than one.
+* **Nucleus page**: a nucleus with excitation energies for two or more
+  states opens on its level scheme (one column per J^π, the ground state as
+  the baseline, a band for the uncertainty) beside a states table, lowest
+  excitation energy first. A switch goes back to the family list. The
+  baseline is labelled g.s. only: the catalog does not say which state it is.
 * **Nuclide names**: the mass number is a `<sup>` in the same face as the
   symbol, never a Unicode superscript (the display face lacks ⁴–⁹).
 * **Sortable headings**: an arrow after the label; the active one is
