@@ -12,13 +12,14 @@ try {
   if (saved === "dark" || saved === "light") document.documentElement.setAttribute("data-theme", saved);
 } catch (err) {}
 </script>
+<link rel="icon" type="image/svg+xml" href="explorer/logo.svg">
 <link rel="stylesheet" href="explorer/katex/katex.min.css">
 <link rel="stylesheet" href="explorer/explorer.css">
 </head>
 <body data-lib="modern">
 <div class="app">
   <header class="top">
-    <a class="brand" href="#modern"><span class="mark" aria-hidden="true"><i class="c"></i><i class="s"></i><i class="t"></i></span>Calculation Storage</a>
+    <a class="brand" href="#modern"><svg class="mark" viewBox="0 0 100 100" aria-hidden="true"><g fill="currentColor"><rect x="8" y="74" width="18" height="18"/><rect x="8" y="52" width="18" height="18"/><rect x="30" y="52" width="18" height="18"/><rect x="52" y="52" width="18" height="18"/><rect x="30" y="30" width="18" height="18"/><rect x="74" y="30" width="18" height="18"/><rect x="52" y="8" width="18" height="18"/></g><rect x="30" y="74" width="18" height="18" fill="#1f4fa0"/><rect x="52" y="30" width="18" height="18" fill="#d52b1e"/><rect x="74" y="8" width="18" height="18" fill="#f2b807"/></svg>Calculation Storage</a>
     <nav class="libs" id="libs" aria-label="Section">
       <button type="button" data-lib="modern" aria-pressed="true">Modern</button>
       <button type="button" data-lib="legacy" aria-pressed="false">Legacy</button>
