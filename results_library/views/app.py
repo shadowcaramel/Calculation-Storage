@@ -65,9 +65,20 @@ HEADLINE_SELECTION_ORDER: tuple[str, ...] = (
 
 _STATUS_RANK = {"published": 0, "working": 1, "probing": 2, "superseded": 3}
 
+#: The home page's results matrix: groups of columns, each column the
+#: observables it holds (the first one names the column). Observables no column
+#: lists fall into the last group's catch-all column (``None``), ordered by
+#: :data:`_OTHER_ORDER`. A library shows only the columns it has results for.
+MATRIX_GROUPS: tuple[tuple[str, tuple[tuple[str, Optional[tuple[str, ...]]], ...]], ...] = (
+    ("Energies", (("Eabs", ("Eabs", "E")), ("Eexc", ("Eexc",)), ("Ethr", ("Ethr",)), ("Erel", ("Erel",)))),
+    ("Radii", (("rp", ("rp",)), ("rpp", ("rpp",)), ("BSR", ("BSR", "BSR (from rp, rpp)")))),
+    ("Other", (("other", None),)),
+)
+_OTHER_ORDER = ("B(E2)", "|Qp|", "|Qn|", "Mp", "Mn", "Mn/Mp", "MnQp/MpQn", "B(E2)/Qp^2")
+
 #: Catalog columns copied into the data file as they are.
 _ROW_FIELDS = (
-    "id", "family", "nucleus", "nucleus_label", "state_label", "observable_label",
+    "id", "family", "nucleus", "nucleus_label", "state_label", "observable", "observable_label",
     "units", "potential", "selection_set", "run_datetime", "run_date_label",
     "value_label", "median", "err_low", "err_high", "N_models", "status", "title",
     "note", "outcome", "reference_nucleus", "subject_kind",
@@ -83,17 +94,20 @@ def _selection_rank(name: Any) -> tuple[int, str]:
         return (len(HEADLINE_SELECTION_ORDER), text)
 
 
-def headline_ids(rows: Iterable[Mapping[str, Any]]) -> set[str]:
+def headline_ids(rows: Iterable[Mapping[str, Any]], *, per_potential: bool = False) -> set[str]:
     """The one result that heads each family, per lineage.
 
     A result annotated ``headline = true`` wins. Otherwise the order is:
     curation status (published first), then :data:`HEADLINE_SELECTION_ORDER`,
     then the newest run. When several results in a family are pinned, the
-    same order breaks the tie.
+    same order breaks the tie. With ``per_potential``, each potential within a
+    family gets its own head, for views filtered to one potential.
     """
-    groups: Dict[tuple[str, str], List[Mapping[str, Any]]] = {}
+    groups: Dict[tuple[str, ...], List[Mapping[str, Any]]] = {}
     for row in rows:
         key = (normalize_lineage(row.get("lineage")), str(row.get("family") or ""))
+        if per_potential:
+            key += (str(row.get("potential") or ""),)
         groups.setdefault(key, []).append(row)
 
     def order(row: Mapping[str, Any]) -> tuple:
@@ -223,6 +237,52 @@ def _nucleus_coordinates(nucleus: str) -> Optional[Dict[str, int]]:
     return {"Z": nuclide.Z, "N": nuclide.N, "A": nuclide.A, "symbol": nuclide.element}
 
 
+def _level(row: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """A state's quantum numbers (2J, parity, 2T, index), for level schemes."""
+    if str(row.get("subject_kind") or "") != "state":
+        return None
+    level = {key: _number(row.get(field)) for key, field in (("J2", "J2"), ("T2", "T2"), ("n", "index"))}
+    parity = _clean(row.get("parity"))
+    if level["J2"] is None or parity not in ("+", "-"):
+        return None
+    level["parity"] = parity
+    return level
+
+
+def matrix_columns(records: Iterable[Mapping[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """The results-matrix columns each lineage has results for, per :data:`MATRIX_GROUPS`."""
+    present: Dict[str, Dict[str, Mapping[str, Any]]] = {}
+    for row in records:
+        observable = _clean(row.get("observable"))
+        if observable is not None:
+            present.setdefault(normalize_lineage(row.get("lineage")), {}).setdefault(str(observable), row)
+    listed = {name for _group, columns in MATRIX_GROUPS for _key, names in columns for name in names or ()}
+
+    def rank(name: str) -> tuple:
+        return (_OTHER_ORDER.index(name) if name in _OTHER_ORDER else len(_OTHER_ORDER), name)
+
+    out: Dict[str, List[Dict[str, Any]]] = {}
+    for lineage, seen in present.items():
+        columns = []
+        for group, specs in MATRIX_GROUPS:
+            for key, names in specs:
+                held = [n for n in names if n in seen] if names else sorted((n for n in seen if n not in listed), key=rank)
+                if not held:
+                    continue
+                first = seen[held[0]]
+                column = {"key": key, "group": group, "observables": held}
+                if names:
+                    column["latex"] = _strip_dollars(first.get("observable_latex"))
+                    column["label"] = _clean(first.get("observable_label")) or held[0]
+                    column["units"] = _clean(first.get("units")) or ""
+                else:
+                    column["label"] = "E2 and moments" if set(held) <= set(_OTHER_ORDER) else "Other observables"
+                    column["units"] = ""
+                columns.append(column)
+        out[lineage] = columns
+    return out
+
+
 def export_row(
     row: Mapping[str, Any],
     *,
@@ -238,6 +298,7 @@ def export_row(
     out["state_latex"] = _strip_dollars(row.get("state_latex"))
     out["observable_latex"] = _strip_dollars(row.get("observable_latex"))
     out["value_latex"] = _strip_dollars(row.get("value_latex"))
+    out["level"] = _level(row)
     out["nmax"] = [_number(row.get("bounds_Nmax_min")), _number(row.get("bounds_Nmax_max"))]
     out["homega"] = [_number(row.get("bounds_hOmega_min")), _number(row.get("bounds_hOmega_max"))]
     out["bundle"] = str(row.get("bundle_path") or "")
@@ -279,6 +340,7 @@ def explorer_data(
         for record in catalog.to_dict("records")
     ]
     heads = headline_ids(records)
+    potential_heads = headline_ids(records, per_potential=True)
     links = {str(k): list(v) for k, v in (paper_links or {}).items()}
     # One trained ensemble (same run, family, potential, bounds), numbered so
     # the long key is not repeated on every row.
@@ -286,6 +348,7 @@ def explorer_data(
     rows = []
     for record in records:
         row = export_row(record, headline=str(record.get("id")) in heads, papers=links.get(str(record.get("id")), ()))
+        row["potential_headline"] = str(record.get("id")) in potential_heads
         row["ensemble"] = ensembles.setdefault(_cohort_key(record), len(ensembles))
         rows.append(row)
     rows.sort(key=lambda r: (nucleus_sort_key(r.get("nucleus") or ""), str(r.get("family")), str(r.get("id"))))
@@ -320,6 +383,7 @@ def explorer_data(
         "label_tex": _label_tex(),
         "axes": _axes(),
         "nuclei": nuclei,
+        "matrix": matrix_columns(records),
         "figures": figures,
         "rows": rows,
     }

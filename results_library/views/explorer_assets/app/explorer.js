@@ -46,7 +46,7 @@
     p.loose.forEach(function (c) { (CHECKS_BY_RESULT[c.result] = CHECKS_BY_RESULT[c.result] || []).push({ paper: p, material: null, check: c }); });
   });
 
-  var state = { lib: "modern", nuc: null, fam: null, sel: null, paper: null, facets: {}, facetFam: null, xaxis: null, zoom: true, sort: { key: "date", dir: -1 } };
+  var state = { lib: "modern", nuc: null, fam: null, sel: null, paper: null, pot: null, facets: {}, facetFam: null, xaxis: null, zoom: true, sort: { key: "date", dir: -1 } };
 
   // ---- helpers ---------------------------------------------------------
 
@@ -320,17 +320,164 @@
       '<div class="n">' + plural(f.rows.length, "result", "results") + "<br>" + f.ensembles + " ens.</div></a>";
   }
 
+  // ---- results matrix (overview) ----------------------------------------
+  // One row per nucleus, one column per observable group (CAT.matrix, set by
+  // the build). A cell holds that nucleus's families whose observable the
+  // column lists: one value, a small level scheme, or a count and range.
+
+  // Under a potential filter, a family is headed by its best result with that
+  // potential (the build marks it), and counts only those results.
+  function headOf(f) {
+    if (!state.pot) return f.head;
+    return f.rows.filter(function (r) { return r.potential === state.pot && r.potential_headline; })[0] || null;
+  }
+  function shownRows(f) { return state.pot ? f.rows.filter(function (r) { return r.potential === state.pot; }) : f.rows; }
+  function statusRank(r) { var i = STATUS_ORDER.indexOf(r.status); return i < 0 ? 9 : i; }
+  // Within one state, the family shown first: best status, then the plain
+  // name before its _selection variants.
+  function primaryOrder(a, b) { return (statusRank(headOf(a)) - statusRank(headOf(b))) || String(a.key).localeCompare(String(b.key)); }
+  function jLabel(lv) { return (lv.J2 % 2 ? lv.J2 + "/2" : String(lv.J2 / 2)); }
+  function levelHtml(lv) { return jLabel(lv) + "<sup>" + (lv.parity === "-" ? "−" : "+") + "</sup>" + (lv.n > 1 ? " (" + lv.n + ")" : ""); }
+  function levelText(lv) { return jLabel(lv) + (lv.parity === "-" ? "−" : "+") + (lv.n > 1 ? " (" + lv.n + ")" : ""); }
+  function stateHtml(r) { return r.level ? levelHtml(r.level) : stateTex(r); }
+  // The value as printed (its own rounding), with a true minus sign.
+  function printed(r) { var m = /^\s*(-?[\d.]+)/.exec(String(r.value_label || "")); return m ? minus(m[1]) : num(r.median); }
+  function statusDot(r) { return '<span class="dot st-' + esc(r.status) + '" title="' + esc(r.status) + '"></span>'; }
+
+  // Energy up, one column per spin and parity, the ground state as the
+  // baseline. Only the shape: the values are one click away.
+  function miniScheme(heads) {
+    var cols = uniq(heads.map(function (r) { return r.level.J2 * 2 + (r.level.parity === "-" ? 1 : 0); })).sort(function (a, b) { return a - b; });
+    var vals = heads.map(function (r) { return r.median; });
+    var lo = Math.min(0, Math.min.apply(null, vals)), hi = Math.max.apply(null, vals);
+    if (hi - lo < 1e-9) hi = lo + 1;
+    // About as wide as a cell, so the labels print near their own size.
+    var W = 150, T = 4, B = 44, step = (W - 4) / cols.length, w = step * 0.7;
+    var y = function (e) { return B - (e - lo) / (hi - lo) * (B - T); };
+    var s = '<svg class="scheme" viewBox="0 0 ' + W + ' 60" aria-hidden="true"><rect class="bg" x="0" y="0" width="' + W + '" height="' + (B + 4) + '"/>';
+    s += '<line class="gs" x1="0" x2="' + W + '" y1="' + y(0) + '" y2="' + y(0) + '"/>';
+    heads.forEach(function (r) {
+      var i = cols.indexOf(r.level.J2 * 2 + (r.level.parity === "-" ? 1 : 0)), x = 2 + i * step + (step - w) / 2;
+      s += '<line class="lv" x1="' + x + '" x2="' + (x + w) + '" y1="' + y(r.median) + '" y2="' + y(r.median) + '"/>';
+    });
+    cols.forEach(function (c, i) {
+      var J2 = Math.floor(c / 2), par = c % 2 ? "−" : "+";
+      s += '<text x="' + (2 + i * step + step / 2) + '" y="58" text-anchor="middle">' + jLabel({ J2: J2 }) + '<tspan dy="-4" font-size="8">' + par + "</tspan></text>";
+    });
+    return s + "</svg>";
+  }
+
+  function matrixCell(col, fams, nuc) {
+    if (!fams.length) return '<td><span class="mx-none">–</span></td>';
+    var byState = {}, keys = [];
+    fams.forEach(function (f) { var k = f.head.state_label; if (!byState[k]) { byState[k] = []; keys.push(k); } byState[k].push(f); });
+    var prim = keys.map(function (k) { return byState[k].slice().sort(primaryOrder)[0]; });
+    var count = fams.reduce(function (a, f) { return a + shownRows(f).length; }, 0);
+    var heads = prim.map(headOf);
+    var pots = uniq(heads.map(function (r) { return r.potential; }));
+    var meta = function (r) {
+      return '<span class="m">' + (r ? statusDot(r) : "") + esc(pots.length === 1 ? pots[0] : plural(pots.length, "potential", "potentials")) + " · " + plural(count, "result", "results") + "</span>";
+    };
+    var nucRoute = route(state.lib, "n", nuc);
+    // The catch-all column shows its first observable, the others behind it.
+    if (col.key === "other" || prim.length === 1) {
+      var lead = prim[0];
+      if (col.key === "other") {
+        lead = fams.slice().sort(function (a, b) { return (col.observables.indexOf(a.head.observable) - col.observables.indexOf(b.head.observable)) || primaryOrder(a, b); })[0];
+        pots = uniq([headOf(lead).potential]);
+      }
+      var r = headOf(lead), more = fams.length - 1;
+      count = shownRows(lead).length;
+      var o = '<td><a class="mx" href="' + route(state.lib, "f", lead.key) + '" title="' + esc(r.state_label) + '">';
+      if (col.key === "other") o += '<span class="l"><span>' + obsTex(r) + ' <span class="hint">' + esc(units(r.units)) + "</span></span></span>";
+      o += '<span class="v">' + valTex(r) + "</span>" + meta(r) + "</a>";
+      if (more) o += '<a class="mx-more" href="' + nucRoute + '">+' + more + " " + (col.key === "other" ? "more" : more === 1 ? "variant" : "variants") + "</a>";
+      return o + "</td>";
+    }
+    var sorted = heads.slice().sort(function (a, b) { return a.median - b.median; });
+    var range = printed(sorted[0]) + " to " + printed(sorted[sorted.length - 1]);
+    var st = uniq(heads.map(function (r) { return r.status; }));
+    var dot = st.length === 1 ? heads[0] : null;
+    var o2 = '<td><a class="mx" href="' + nucRoute + '" title="' + esc(heads.map(function (r) { return (r.level ? levelText(r.level) : r.state_label) + ": " + r.value_label; }).join("\n")) + '">';
+    o2 += '<span class="l"><b>' + plural(prim.length, "state", "states") + "</b>";
+    if (col.key === "Eexc" && heads.every(function (r) { return r.level && r.median != null; })) {
+      o2 += '<span class="hint">' + range + "</span></span>" + miniScheme(heads);
+    } else if (prim.length === 2) {
+      o2 += "</span>" + heads.map(function (r) { return '<span class="it"><span class="hint">' + stateHtml(r) + "</span>" + valTex(r) + "</span>"; }).join("");
+    } else {
+      o2 += "</span>" + '<span class="rng">' + range + "</span>";
+    }
+    return o2 + meta(dot) + "</a></td>";
+  }
+
+  // "2 states, 1 transition", or the state itself when there is only one.
+  function nucStates(fams) {
+    var states = uniq(fams.filter(function (f) { return f.head.subject_kind !== "transition"; }).map(function (f) { return f.head.state_label; }));
+    var trans = uniq(fams.filter(function (f) { return f.head.subject_kind === "transition"; }).map(function (f) { return f.head.state_label; }));
+    if (states.length + trans.length === 1) return stateTex(fams[0].head);
+    return [states.length ? plural(states.length, "state", "states") : "", trans.length ? plural(trans.length, "transition", "transitions") : ""].filter(Boolean).join(", ");
+  }
+
+  function matrix(lib) {
+    var cols = (CAT.matrix || {})[lib] || [];
+    var fams = families(lib).filter(function (f) { return headOf(f); });
+    var byNuc = {};
+    fams.forEach(function (f) { (byNuc[f.nucleus] = byNuc[f.nucleus] || []).push(f); });
+    var colOf = function (f) { for (var i = 0; i < cols.length; i++) if (cols[i].observables.indexOf(f.head.observable) >= 0) return i; return -1; };
+    var groups = [];
+    cols.forEach(function (c) { var g = groups[groups.length - 1]; if (g && g.name === c.group) g.span++; else groups.push({ name: c.group, span: 1 }); });
+    var h = '<div class="tablewrap"><table class="matrix"><colgroup><col class="nuccol">' + cols.map(function () { return "<col>"; }).join("") + "</colgroup><thead>";
+    h += '<tr class="grp"><th></th>' + groups.map(function (g) { return '<th colspan="' + g.span + '"><span>' + esc(g.name) + "</span></th>"; }).join("") + "</tr>";
+    h += '<tr class="obs"><th scope="col">Nucleus</th>' + cols.map(function (c) { return '<th scope="col">' + (c.latex ? tex(c.latex, c.label) : esc(c.label)) + (c.units ? ' <span class="u">' + esc(units(c.units)) + "</span>" : "") + "</th>"; }).join("") + "</tr></thead><tbody>";
+    Object.keys(byNuc).sort(nucOrder).forEach(function (n) {
+      var list = byNuc[n], cells = cols.map(function () { return []; });
+      list.forEach(function (f) { var i = colOf(f); if (i >= 0) cells[i].push(f); });
+      h += '<tr><th scope="row"><a class="nuc" href="' + route(lib, "n", n) + '">' + nucHtml(n) + '</a><span class="hint">' + nucStates(list) + "</span></th>";
+      h += cols.map(function (c, i) { return matrixCell(c, cells[i], n); }).join("") + "</tr>";
+    });
+    return h + "</tbody></table></div>";
+  }
+
+  // One line per day and nucleus: what was run, and how many families it touched.
+  function recentRuns(lib, limit) {
+    var by = {}, list = [];
+    libRows(lib).forEach(function (r) {
+      var day = String(r.run_datetime || "").slice(0, 10), k = day + "|" + r.nucleus;
+      if (!by[k]) { by[k] = { day: day, label: r.run_date_label || day, nucleus: r.nucleus, fams: [] }; list.push(by[k]); }
+      if (by[k].fams.indexOf(r.family) < 0) by[k].fams.push(r.family);
+    });
+    list.sort(function (a, b) { return b.day.localeCompare(a.day) || nucOrder(a.nucleus, b.nucleus); });
+    var cols = (CAT.matrix || {})[lib] || [];
+    var rank = function (r) { for (var i = 0; i < cols.length; i++) { var j = cols[i].observables.indexOf(r.observable); if (j >= 0) return i * 100 + j; } return 9999; };
+    return list.slice(0, limit).map(function (g) {
+      var heads = g.fams.map(function (key) { return family(lib, key).head; });
+      var obs = [], seen = {};
+      heads.slice().sort(function (a, b) { return rank(a) - rank(b); }).forEach(function (r) { if (!seen[r.observable]) { seen[r.observable] = 1; obs.push(obsTex(r)); } });
+      var states = [], seenS = {};
+      heads.forEach(function (r) { if (!seenS[r.state_label]) { seenS[r.state_label] = 1; states.push(r); } });
+      states.sort(function (a, b) { return a.level && b.level ? (a.level.J2 - b.level.J2) || (a.level.n - b.level.n) : 0; });
+      var target = g.fams.length === 1 ? route(lib, "f", g.fams[0]) : route(lib, "n", g.nucleus);
+      return '<a class="run" href="' + target + '" title="' + esc(states.map(function (r) { return r.state_label; }).join(", ")) + '"><span class="d">' + esc(g.label) + '</span><span class="nuc">' + nucHtml(g.nucleus) + '</span><span class="w">' + obs.join(", ") + ' <span class="hint">· ' + states.map(stateHtml).join(", ") + '</span></span><span class="c">' + plural(g.fams.length, "family", "families") + "</span></a>";
+    }).join("");
+  }
+
   function renderOverview() {
-    var rows = libRows(state.lib), fams = families(state.lib);
+    var rows = libRows(state.lib);
     var lede = state.lib === "legacy"
       ? "Results from the old TensorFlow cluster scripts, kept apart from the current pipeline."
       : "Results from the current ensemble pipeline.";
-    var h = '<div class="stack"><div class="hero"><div class="intro"><div class="eyebrow">Library</div><h1 class="caps" style="margin-top:8px">' + libName(state.lib) + ' library</h1><p class="lede">' + lede + " Pick a nucleus on the chart or in the list.</p>";
-    h += "</div>";
-    if (!rows.length) return ($("main").innerHTML = h + '</div><p class="empty">No ' + state.lib + " results yet.</p></div>");
-    h += '<div class="panel"><div class="panel-h"><h2>Chart of nuclei</h2><span class="hint">The number in each cell is how many results it has.</span></div><div class="panel-b nzmap">' + nucleiMap(state.lib, true) + "</div></div></div>";
-    var recent = fams.slice().sort(function (a, b) { return String(b.latest).localeCompare(String(a.latest)); }).slice(0, 8);
-    h += '<div class="panel"><div class="panel-h"><h2>Most recent runs</h2></div><div class="fams">' + recent.map(famRow).join("") + "</div></div></div>";
+    var h = '<div class="stack"><div class="intro"><div class="eyebrow">Library</div><h1 class="caps" style="margin-top:8px">' + libName(state.lib) + ' library</h1><p class="lede">' + lede + "</p></div>";
+    if (!rows.length) return ($("main").innerHTML = h + '<p class="empty">No ' + state.lib + " results yet.</p></div>");
+    var pots = uniq(rows.map(function (r) { return r.potential; })).sort();
+    if (pots.indexOf(state.pot) < 0) state.pot = null;
+    h += '<section class="panel"><div class="panel-h"><h2>Results at a glance</h2><span class="hint">The headline value of each family. Where a nucleus has several states, the cell shows them together.</span>';
+    if (pots.length > 1) {
+      h += '<span class="spacer"></span><div class="chips" role="group" aria-label="Potential"><span class="eyebrow">Potential</span>';
+      h += '<button type="button" class="chip" data-pot=""' + ' aria-pressed="' + !state.pot + '">All</button>';
+      h += pots.map(function (p) { return '<button type="button" class="chip" data-pot="' + esc(p) + '" aria-pressed="' + (state.pot === p) + '">' + esc(p) + "</button>"; }).join("") + "</div>";
+    }
+    h += "</div>" + matrix(state.lib) + "</section>";
+    h += '<section class="panel"><div class="panel-h"><h2>Most recent runs</h2><span class="hint">One line per day and nucleus.</span></div><div class="runs">' + recentRuns(state.lib, 8) + "</div></section></div>";
     $("main").innerHTML = h + libFooter(state.lib);
   }
 
@@ -875,6 +1022,7 @@
       redrawFamily(); return;
     }
     if (t.hasAttribute("data-reset")) { state.facets = {}; redrawFamily(); return; }
+    if (t.hasAttribute("data-pot")) { state.pot = t.getAttribute("data-pot") || null; renderOverview(); typeset($("main")); return; }
     if (t.hasAttribute("data-sort")) {
       var key = t.getAttribute("data-sort");
       state.sort = state.sort.key === key ? { key: key, dir: -state.sort.dir } : { key: key, dir: 1 };

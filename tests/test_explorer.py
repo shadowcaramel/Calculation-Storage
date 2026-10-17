@@ -17,6 +17,7 @@ from results_library.views.app import (
     EXPLORER_PAGE,
     build_explorer,
     headline_ids,
+    matrix_columns,
 )
 from results_schema.models import Variant
 
@@ -101,6 +102,36 @@ class TestHeadline:
         ]
         assert headline_ids(rows) == {"legacy-a", "modern-a", "other"}
 
+    def test_per_potential_heads_each_potential(self):
+        rows = [
+            _row(id="d16", potential="Daejeon16", status="published"),
+            _row(id="jisp", potential="JISP16", run_datetime="2026-01-01"),
+            _row(id="jisp-old", potential="JISP16", run_datetime="2025-01-01"),
+        ]
+        assert headline_ids(rows) == {"d16"}
+        assert headline_ids(rows, per_potential=True) == {"d16", "jisp"}
+
+
+class TestMatrixColumns:
+    def test_columns_follow_the_groups_and_skip_missing_ones(self):
+        rows = [
+            _row(observable="rp", observable_latex="$r_p$", units="fm"),
+            _row(observable="E"),
+            _row(observable="Eabs", observable_latex="$E_{\\mathrm{abs}}$", units="MeV"),
+            _row(observable="mu"),
+            _row(observable="B(E2)"),
+            _row(observable="Eexc", lineage="modern"),
+        ]
+        cols = matrix_columns(rows)
+        assert [c["key"] for c in cols["legacy"]] == ["Eabs", "rp", "other"]
+        assert [c["key"] for c in cols["modern"]] == ["Eexc"]
+        eabs, rp, other = cols["legacy"]
+        assert eabs["observables"] == ["Eabs", "E"] and eabs["group"] == "Energies"
+        assert rp["latex"] == "r_p" and rp["units"] == "fm" and rp["group"] == "Radii"
+        # Leftovers are ordered with the E2 observables first.
+        assert other["observables"] == ["B(E2)", "mu"] and other["label"] == "Other observables"
+        assert matrix_columns([_row(observable="B(E2)")])["legacy"][0]["label"] == "E2 and moments"
+
 
 class TestHeadlineAnnotation:
     def test_merge_reads_true_only(self):
@@ -147,6 +178,12 @@ class TestDataFile:
         assert heads[0]["tags"] == ["scan"]
         assert heads[0]["nmax"] == [2, 6] and heads[0]["homega"] == [13, 40]
         assert heads[0]["latex"].startswith("\\begin{tabular}")
+        assert heads[0]["observable"] == "Erel"
+        assert heads[0]["level"] == {"J2": 0, "parity": "+", "T2": 2, "n": 2}
+        assert sum(r["potential_headline"] for r in he6) == 1
+        transition = next(r for r in data["rows"] if r["nucleus"] == "16C")
+        assert transition["level"] is None
+        assert [c["key"] for c in data["matrix"]["modern"]] == ["Erel", "other"]
 
     def test_bundle_paths_are_shortened_and_root_relative(self, library):
         frame, _ = build_catalog(library)
@@ -250,8 +287,11 @@ class TestInBrowser:
             base = page_path.as_uri()
             page.goto(base)
             assert page.locator("h1").inner_text().lower() == "modern library"
+            assert page.locator("#main .panel-h h2").first.inner_text().lower() == "results at a glance"
+            assert page.locator("table.matrix tbody tr").count() == 2
+            assert page.locator("table.matrix a.mx").count() == 2
             assert page.locator("#main .panel-h h2").last.inner_text().lower() == "most recent runs"
-            assert "6" in page.locator("#main .famrow .nuclide sup").all_inner_texts()
+            assert "6" in page.locator("#main .run .nuclide sup").all_inner_texts()
             page.goto(base + "#modern/n/6He")
             assert page.locator(".famrow").count() == 1
             page.goto(base + "#modern/f/" + family.replace("/", "%2F"))

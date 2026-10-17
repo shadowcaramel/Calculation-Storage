@@ -79,8 +79,15 @@ it covers Cyrillic, so the Russian captions in papers render in the same face.
 * **Chip**: 1.5 px border, square. When pressed it fills with ink.
 * **Z–N chart**: square cells. A nucleus with results is outlined in ink;
   the current one fills with the accent colour.
-* **Overview**: title beside the chart, then the most recent runs at full
-  width, so their values have room. No hover preview (it flickered).
+* **Overview**: the title, then the results matrix, then the most recent
+  runs, one line per day and nucleus. The Z–N chart stays in the rail. No
+  hover preview (it flickered).
+* **Results matrix**: nuclei down, observable groups across (energies, radii,
+  then everything else folded into one column; the build sets them). Group
+  rules are ink, because blue and red name the libraries. A cell shows the
+  headline value with its status mark; several states show as a small level
+  scheme (excitation energies), two values, or a count and range. A potential
+  filter sits in the panel header when the library has more than one.
 * **Nuclide names**: the mass number is a `<sup>` in the same face as the
   symbol, never a Unicode superscript (the display face lacks ⁴–⁹).
 * **Sortable headings**: an arrow after the label; the active one is
