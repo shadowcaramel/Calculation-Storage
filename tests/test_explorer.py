@@ -250,10 +250,8 @@ class TestInBrowser:
             base = page_path.as_uri()
             page.goto(base)
             assert page.locator("h1").inner_text().lower() == "modern library"
-            assert "most recent runs" in page.locator("#nzprev h2").inner_text().lower()
-            page.locator('#main [data-nuc="6He"]').hover()
-            assert "He" in page.locator("#nzprev h2").inner_text()
-            assert page.locator("#nzprev .prow").count() == 1
+            assert page.locator("#main .panel-h h2").last.inner_text().lower() == "most recent runs"
+            assert "6" in page.locator("#main .famrow .nuclide sup").all_inner_texts()
             page.goto(base + "#modern/n/6He")
             assert page.locator(".famrow").count() == 1
             page.goto(base + "#modern/f/" + family.replace("/", "%2F"))

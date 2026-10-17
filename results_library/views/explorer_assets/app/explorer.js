@@ -46,7 +46,7 @@
     p.loose.forEach(function (c) { (CHECKS_BY_RESULT[c.result] = CHECKS_BY_RESULT[c.result] || []).push({ paper: p, material: null, check: c }); });
   });
 
-  var state = { lib: "modern", nuc: null, fam: null, sel: null, paper: null, facets: {}, facetFam: null, xaxis: null, zoom: true, sort: { key: "date", dir: -1 }, preview: null, previewLib: null };
+  var state = { lib: "modern", nuc: null, fam: null, sel: null, paper: null, facets: {}, facetFam: null, xaxis: null, zoom: true, sort: { key: "date", dir: -1 } };
 
   // ---- helpers ---------------------------------------------------------
 
@@ -65,6 +65,12 @@
   function nucOrder(a, b) {
     var A = nucInfo(a).order, B = nucInfo(b).order;
     return (A[0] - B[0]) || (A[1] - B[1]) || (A[2] - B[2]) || String(a).localeCompare(String(b));
+  }
+  // The mass number as real markup. The display face has ¹²³ but not ⁴–⁹, so
+  // Unicode superscripts would set ¹⁷C in two fonts.
+  function nucHtml(n) {
+    var c = CAT.nuclei[n] && CAT.nuclei[n].chart, m = c ? [n, c.A, c.symbol] : /^(\d+)([A-Z][a-z]?)$/.exec(String(n));
+    return m ? '<span class="nuclide"><sup>' + m[1] + "</sup>" + esc(m[2]) + "</span>" : esc(nucInfo(n).label);
   }
   function units(u) { return u ? String(u).replace(/\^2/g, "²").replace(/\^4/g, "⁴").replace(/\^-1/g, "⁻¹") : ""; }
   // Nmax and ħΩ windows are integers in the catalog; print them as such.
@@ -236,9 +242,8 @@
     cells.forEach(function (name) {
       var c = CAT.nuclei[name].chart, x = pad + (c.N - 1) * cell, y = top + (maxZ - c.Z) * cell;
       var has = !!counts[name], cur = state.nuc === name && state.lib === lib;
-      var pv = big && has && state.preview === name && state.previewLib === lib;
-      var open = has ? '<a href="' + route(lib, "n", name) + '" data-nuc="' + esc(name) + '" aria-label="' + esc(name) + ", " + plural(counts[name], "result", "results") + '">' : "";
-      s += open + '<g class="nz-cell' + (has ? " has" : " empty") + (cur ? " cur" : "") + (pv ? " pv" : "") + '">';
+      var open = has ? '<a href="' + route(lib, "n", name) + '" aria-label="' + esc(name) + ", " + plural(counts[name], "result", "results") + '">' : "";
+      s += open + '<g class="nz-cell' + (has ? " has" : " empty") + (cur ? " cur" : "") + '">';
       s += '<rect x="' + (x + 2) + '" y="' + (y + 2) + '" width="' + (cell - 4) + '" height="' + (cell - 4) + '"/>';
       if (has && !cur) s += '<rect class="flag" x="' + (x + 2) + '" y="' + (y + 2) + '" width="' + (big ? 8 : 5) + '" height="' + (big ? 8 : 5) + '"/>';
       s += '<text x="' + (x + cell / 2) + '" y="' + (y + cell * (big ? 0.5 : 0.64)) + '" text-anchor="middle" font-size="' + (big ? 16 : 10.5) + '" font-weight="700">';
@@ -255,12 +260,12 @@
     if (state.lib === "papers") return renderPaperRail();
     var fams = families(state.lib), byNuc = {};
     fams.forEach(function (f) { (byNuc[f.nucleus] = byNuc[f.nucleus] || []).push(f); });
-    var h = state.nuc ? '<div class="eyebrow">Nuclei · Z against N</div><div class="nzmap">' + nucleiMap(state.lib, false) + "</div>" : "";
+    var h = '<div class="eyebrow">Nuclei · Z against N</div><div class="nzmap">' + nucleiMap(state.lib, false) + "</div>";
     h += '<div class="eyebrow">' + libName(state.lib) + ' families</div><nav class="tree" aria-label="Families">';
     h += '<a href="' + route(state.lib) + '"' + (!state.nuc ? ' aria-current="page"' : "") + ">Overview</a>";
     Object.keys(byNuc).sort(nucOrder).forEach(function (n) {
       var list = byNuc[n], total = list.reduce(function (a, f) { return a + f.rows.length; }, 0);
-      h += '<a href="' + route(state.lib, "n", n) + '"' + (state.nuc === n && !state.fam ? ' aria-current="page"' : "") + '><span class="nuc">' + esc(nucInfo(n).label) + '</span><span class="hint">' + plural(list.length, "family", "families") + '</span><span class="c">' + total + "</span></a>";
+      h += '<a href="' + route(state.lib, "n", n) + '"' + (state.nuc === n && !state.fam ? ' aria-current="page"' : "") + '><span class="nuc">' + nucHtml(n) + '</span><span class="hint">' + plural(list.length, "family", "families") + '</span><span class="c">' + total + "</span></a>";
       if (state.nuc !== n) return;
       list.forEach(function (f) {
         h += '<a class="fam" href="' + route(state.lib, "f", f.key) + '"' + (state.fam === f.key ? ' aria-current="page"' : "") + "><span>" + obsTex(f.head) + ' <span class="hint">' + stateTex(f.head) + '</span></span><span class="c">' + f.rows.length + "</span></a>";
@@ -305,67 +310,25 @@
   function famRow(f) {
     var h = f.head;
     return '<a class="famrow" href="' + route(state.lib, "f", f.key) + '">' +
-      '<div><div class="obs">' + esc(nucInfo(f.nucleus).label) + " " + obsTex(h) + (h.units ? ' <span class="hint">' + esc(units(h.units)) + "</span>" : "") + '</div><div class="meta">' + stateTex(h) + (h.reference_nucleus ? " · vs " + esc(h.reference_nucleus) : "") + "</div></div>" +
+      '<div><div class="obs">' + nucHtml(f.nucleus) + " " + obsTex(h) + (h.units ? ' <span class="hint">' + esc(units(h.units)) + "</span>" : "") + '</div><div class="meta">' + stateTex(h) + (h.reference_nucleus ? " · vs " + nucHtml(h.reference_nucleus) : "") + "</div></div>" +
       '<div class="chips">' + f.potentials.map(function (p) { return '<span class="tag">' + esc(p) + "</span>"; }).join("") + "</div>" +
       '<div><div class="val">' + valTex(h) + '</div><div class="meta"><span class="dot st-' + h.status + '"></span> ' + esc(h.selection_set) + " · " + nmaxTex() + " " + win(h.nmax) + "</div></div>" +
       "<div>" + strip(f) + "</div>" +
       '<div class="n">' + plural(f.rows.length, "result", "results") + "<br>" + f.ensembles + " ens.</div></a>";
   }
 
-  // One compact family line for the narrow preview column.
-  function previewRow(f, withNucleus) {
-    var h = f.head;
-    return '<a class="prow" href="' + route(state.lib, "f", f.key) + '">' +
-      '<span class="what">' + (withNucleus ? '<b class="nuc">' + esc(nucInfo(f.nucleus).label) + "</b> " : "") + obsTex(h) + ' <span class="hint">' + stateTex(h) + "</span></span>" +
-      '<span class="v">' + valTex(h) + (h.units ? ' <span class="hint">' + esc(units(h.units)) + "</span>" : "") + "</span>" +
-      '<span class="meta"><span class="dot st-' + h.status + '"></span> ' + esc(h.selection_set) + " · " + nmaxTex() + " " + win(h.nmax) + " · " + esc(h.run_date_label) + "</span>" +
-      '<span class="n">' + plural(f.rows.length, "result", "results") + "</span></a>";
-  }
-
-  // The panel beside the chart: the nucleus last pointed at, or the most
-  // recent runs until then.
-  function previewPanel() {
-    var nuc = state.previewLib === state.lib ? state.preview : null;
-    var fams = families(state.lib);
-    if (!nuc) {
-      var recent = fams.slice().sort(function (a, b) { return String(b.latest).localeCompare(String(a.latest)); }).slice(0, 6);
-      return '<div class="panel-h"><h2>Most recent runs</h2><span class="hint">Point at a nucleus on the chart to see its families here.</span></div><div class="prows">' + recent.map(function (f) { return previewRow(f, true); }).join("") + "</div>";
-    }
-    var own = fams.filter(function (f) { return f.nucleus === nuc; });
-    var total = own.reduce(function (a, f) { return a + f.rows.length; }, 0);
-    var o = '<div class="panel-h"><h2 class="nocaps">' + esc(nucInfo(nuc).label) + '</h2><span class="hint">' + plural(own.length, "family", "families") + ", " + plural(total, "result", "results") + '</span><span class="spacer"></span><button type="button" class="btn" data-preview="">Recent runs</button><a class="btn primary" href="' + route(state.lib, "n", nuc) + '">Open</a></div><div class="prows">';
-    var seen = {};
-    own.forEach(function (f) {
-      var k = f.head.state_label;
-      if (!seen[k]) { seen[k] = true; o += '<div class="pstate">' + stateTex(f.head) + "</div>"; }
-      o += previewRow(f, false);
-    });
-    return o + "</div>";
-  }
-  function showPreview(nuc) {
-    if (state.preview === nuc && state.previewLib === state.lib) return;
-    state.preview = nuc; state.previewLib = state.lib;
-    var panel = $("nzprev");
-    if (!panel) return;
-    panel.innerHTML = previewPanel();
-    typeset(panel);
-    document.querySelectorAll("#main .nz-cell").forEach(function (g) {
-      var a = g.parentNode;
-      g.classList.toggle("pv", !!nuc && a && a.getAttribute && a.getAttribute("data-nuc") === nuc);
-    });
-  }
-
   function renderOverview() {
-    var rows = libRows(state.lib);
+    var rows = libRows(state.lib), fams = families(state.lib);
     var lede = state.lib === "legacy"
       ? "Results from the old TensorFlow cluster scripts, kept apart from the current pipeline."
       : "Results from the current ensemble pipeline.";
-    var h = '<div class="stack"><div class="hero"><div class="lead"><div class="intro"><div class="eyebrow">Library</div><h1 class="caps" style="margin-top:8px">' + libName(state.lib) + ' library</h1><p class="lede">' + lede + " Point at a nucleus on the chart to preview it, or click to open it.</p>";
+    var h = '<div class="stack"><div class="hero"><div class="intro"><div class="eyebrow">Library</div><h1 class="caps" style="margin-top:8px">' + libName(state.lib) + ' library</h1><p class="lede">' + lede + " Pick a nucleus on the chart or in the list.</p>";
     var other = state.lib === "legacy" ? "modern" : "legacy";
     h += '<div class="btnrow" style="margin-top:20px"><a class="btn" href="' + route(other) + '">' + libName(other) + " library</a>" + (PAPERS.length ? '<a class="btn" href="#papers">Papers</a>' : "") + "</div></div>";
-    if (!rows.length) return ($("main").innerHTML = h + '</div></div><p class="empty">No ' + state.lib + " results yet.</p></div>");
-    h += '<div class="panel preview" id="nzprev">' + previewPanel() + "</div></div>";
-    h += '<div class="panel chart"><div class="panel-h"><h2>Chart of nuclei</h2><span class="hint">The number in each cell is how many results it has.</span></div><div class="panel-b nzmap">' + nucleiMap(state.lib, true) + "</div></div></div></div>";
+    if (!rows.length) return ($("main").innerHTML = h + '</div><p class="empty">No ' + state.lib + " results yet.</p></div>");
+    h += '<div class="panel"><div class="panel-h"><h2>Chart of nuclei</h2><span class="hint">The number in each cell is how many results it has.</span></div><div class="panel-b nzmap">' + nucleiMap(state.lib, true) + "</div></div></div>";
+    var recent = fams.slice().sort(function (a, b) { return String(b.latest).localeCompare(String(a.latest)); }).slice(0, 8);
+    h += '<div class="panel"><div class="panel-h"><h2>Most recent runs</h2></div><div class="fams">' + recent.map(famRow).join("") + "</div></div></div>";
     $("main").innerHTML = h + libFooter(state.lib);
   }
 
@@ -373,11 +336,11 @@
 
   function renderNucleus() {
     var fams = families(state.lib).filter(function (f) { return f.nucleus === state.nuc; });
-    var label = nucInfo(state.nuc).label;
-    if (!fams.length) return ($("main").innerHTML = '<p class="empty">No ' + state.lib + " results for " + esc(label) + '. <a href="' + route(state.lib) + '">Back to the overview</a>.</p>');
+    var label = nucHtml(state.nuc);
+    if (!fams.length) return ($("main").innerHTML = '<p class="empty">No ' + state.lib + " results for " + label + '. <a href="' + route(state.lib) + '">Back to the overview</a>.</p>');
     var total = fams.reduce(function (a, f) { return a + f.rows.length; }, 0);
-    var h = '<div class="stack"><div><div class="crumbs"><a href="' + route(state.lib) + '">' + libName(state.lib) + "</a><span>/</span><span>" + esc(label) + "</span></div>";
-    h += "<h1>" + esc(label) + '</h1><p class="lede">' + plural(fams.length, "family", "families") + ", " + plural(total, "result", "results") + ". Each row is one state and observable with its headline value. The strip shows where every other variant lands.</p></div>";
+    var h = '<div class="stack"><div><div class="crumbs"><a href="' + route(state.lib) + '">' + libName(state.lib) + "</a><span>/</span><span>" + label + "</span></div>";
+    h += "<h1>" + label + '</h1><p class="lede">' + plural(fams.length, "family", "families") + ", " + plural(total, "result", "results") + ". Each row is one state and observable with its headline value. The strip shows where every other variant lands.</p></div>";
     var byState = {}, order = [];
     fams.forEach(function (f) { var k = f.head.state_label; if (!byState[k]) { byState[k] = []; order.push(k); } byState[k].push(f); });
     h += '<div class="panel fams">';
@@ -385,7 +348,7 @@
     h += "</div>";
     var other = state.lib === "legacy" ? "modern" : "legacy";
     var twins = families(other).filter(function (f) { return f.nucleus === state.nuc; });
-    if (twins.length) h += '<p class="hint">' + esc(label) + " also has " + plural(twins.length, "family", "families") + ' in the <a href="' + route(other, "n", state.nuc) + '">' + other + " library</a>.</p>";
+    if (twins.length) h += '<p class="hint">' + label + " also has " + plural(twins.length, "family", "families") + ' in the <a href="' + route(other, "n", state.nuc) + '">' + other + " library</a>.</p>";
     $("main").innerHTML = h + "</div>";
   }
 
@@ -496,10 +459,10 @@
     var defs = facetDefs(f), sets = defs[0].vals;
     var rows = f.rows.filter(function (r) { return passes(r, defs); });
     var xmode = state.xaxis || (uniq(f.rows.map(function (r) { return r.nmax[1]; })).length > 1 ? "nmax" : "date");
-    var h = f.head, label = nucInfo(f.nucleus).label;
+    var h = f.head, label = nucHtml(f.nucleus);
 
-    var o = '<div class="stack"><div><div class="crumbs"><a href="' + route(state.lib) + '">' + libName(state.lib) + '</a><span>/</span><a href="' + route(state.lib, "n", f.nucleus) + '">' + esc(label) + "</a><span>/</span><span>" + obsTex(h) + "</span></div>";
-    o += "<h1>" + esc(label) + " " + stateTex(h) + " " + obsTex(h) + "</h1></div>";
+    var o = '<div class="stack"><div><div class="crumbs"><a href="' + route(state.lib) + '">' + libName(state.lib) + '</a><span>/</span><a href="' + route(state.lib, "n", f.nucleus) + '">' + label + "</a><span>/</span><span>" + obsTex(h) + "</span></div>";
+    o += "<h1>" + label + " " + stateTex(h) + " " + obsTex(h) + "</h1></div>";
 
     o += '<div class="panel"><div class="headline"><div class="bar"></div><div class="body-h"><div class="eyebrow">Headline value</div><div class="bigval" style="margin-top:10px">' + valTex(h) + "<small>" + esc(units(h.units)) + '</small></div><p class="rule" style="margin-top:10px"><span class="dot st-' + h.status + '"></span> ' + esc(h.status) + " · " + esc(h.selection_set) + " · " + nmaxTex() + " " + win(h.nmax) + (h.potential ? " · " + esc(h.potential) : "") + " · " + esc(h.run_date_label) + '</p></div><div class="act"><a class="btn primary" href="' + route(state.lib, "r", h.id) + '">Open</a></div></div>';
     o += '<div class="panel-b" style="border-top:1px solid var(--hair)"><p class="rule">' + (h.pinned ? "Pinned with <code>headline = true</code> in annotations.toml." : "Picked by rule: published first, then the selection set in this order: " + CAT.headline_order.map(esc).join(" › ") + ", then the newest run. Add <code>headline = true</code> to a result in annotations.toml to pin a different one.") + "</p></div></div>";
@@ -634,7 +597,7 @@
       var month = p.year_label && p.year_label !== p.year ? p.year_label.replace(p.year, "").trim() : "";
       h += '<a class="paperrow" href="' + paperRoute(p.id) + '"><div class="yr">' + esc(p.year || "–") + (month ? "<small>" + esc(month) + "</small>" : "") + "</div>";
       h += '<div><div class="t">' + esc(p.title) + '</div><div class="who">' + esc(authors(p.authors)) + (p.journal ? ' · <i>' + esc(p.journal) + "</i>" : "") + "</div>";
-      h += '<div class="chips">' + p.nuclei.map(function (n) { return '<span class="tag">' + esc(n) + "</span>"; }).join("") + p.potentials.map(function (n) { return '<span class="tag">' + esc(n) + "</span>"; }).join("") + "</div></div>";
+      h += '<div class="chips">' + p.nuclei.map(function (n) { return '<span class="tag">' + nucHtml(n) + "</span>"; }).join("") + p.potentials.map(function (n) { return '<span class="tag">' + esc(n) + "</span>"; }).join("") + "</div></div>";
       h += '<div class="tally"><span><b>' + p.materials.length + "</b><i>materials</i></span><span><b>" + p.results.length + "</b><i>results</i></span><span><b>" + t.ok + "</b><i>agree</i></span>" + '<span class="' + (t.bad ? "bad" : "") + '"><b>' + t.bad + "</b><i>problems</i></span></div></a>";
     });
     h += "</div></div></div>";
@@ -720,7 +683,7 @@
     panel.hidden = false; layout.classList.add("has-insp");
     var siblings = ROWS.filter(function (x) { return x.ensemble === r.ensemble && x.lineage === r.lineage && x.id !== r.id; });
     var o = '<button type="button" class="close" data-close="1" aria-label="Close">×</button><div class="eyebrow">' + libName(r.lineage) + " result" + (r.headline ? " · family headline" : "") + "</div>";
-    o += "<h2>" + esc(r.title || "") + (r.title ? "" : esc(nucInfo(r.nucleus).label) + " " + stateTex(r) + " " + obsTex(r)) + "</h2>";
+    o += "<h2>" + esc(r.title || "") + (r.title ? "" : nucHtml(r.nucleus) + " " + stateTex(r) + " " + obsTex(r)) + "</h2>";
     o += '<div class="bigval" style="font-size:28px;margin:14px 0 8px">' + valTex(r) + "<small>" + esc(units(r.units)) + "</small></div>";
     o += '<p class="rule"><span class="dot st-' + r.status + '"></span> ' + esc(r.status) + "</p>";
     o += '<div class="btnrow" style="margin-top:14px">' + (state.lib === "papers" ? '<a class="btn primary" href="' + route(r.lineage, "r", r.id) + '">Open family</a>' : "") + '<button type="button" class="btn" data-copy="latex">Copy LaTeX</button><button type="button" class="btn" data-copy="tsv">Copy TSV</button><button type="button" class="btn" data-copy="annotation">Copy annotation</button></div>';
@@ -909,7 +872,6 @@
       if (at >= 0) on.splice(at, 1); else on.push(value);
       redrawFamily(); return;
     }
-    if (t.hasAttribute("data-preview")) { showPreview(t.getAttribute("data-preview") || null); return; }
     if (t.hasAttribute("data-reset")) { state.facets = {}; redrawFamily(); return; }
     if (t.hasAttribute("data-sort")) {
       var key = t.getAttribute("data-sort");
@@ -934,13 +896,6 @@
       if (state.sel) location.hash = closeRoute();
     }
   });
-
-  function previewFrom(event) {
-    var a = event.target.closest && event.target.closest("#main .hero [data-nuc]");
-    if (a) showPreview(a.getAttribute("data-nuc"));
-  }
-  document.addEventListener("mouseover", previewFrom);
-  document.addEventListener("focusin", previewFrom);
 
   var tip = $("tip"), tipFor = null;
   document.addEventListener("mousemove", function (event) {

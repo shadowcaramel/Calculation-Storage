@@ -78,10 +78,10 @@ it covers Cyrillic, so the Russian captions in papers render in the same face.
 * **Chip**: 1.5 px border, square. When pressed it fills with ink.
 * **Z–N chart**: square cells. A nucleus with results is outlined in ink;
   the current one fills with the accent colour.
-* **Overview**: title and a preview panel on the left, the chart on the
-  right. Pointing at a nucleus on the chart fills the preview with its
-  families; until then it lists the most recent runs. The rail keeps the
-  small chart only on nucleus and family pages.
+* **Overview**: title beside the chart, then the most recent runs at full
+  width, so their values have room. No hover preview (it flickered).
+* **Nuclide names**: the mass number is a `<sup>` in the same face as the
+  symbol, never a Unicode superscript (the display face lacks ⁴–⁹).
 * **Sortable headings**: an arrow after the label; the active one is
   underlined in the accent colour.
 * **Footer statistics**: one quiet line of counts and a thin status bar at

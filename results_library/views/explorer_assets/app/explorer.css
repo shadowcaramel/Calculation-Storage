@@ -83,6 +83,12 @@ body[data-lib="papers"] a { text-decoration-color: var(--yellow); }
    The monospaced face is kept for ids, tags and code. */
 .num, .fig, .fig .katex { font-family: var(--display); font-weight: 600; font-variant-numeric: tabular-nums lining-nums; letter-spacing: 0; }
 .mono { font-family: var(--mono); }
+/* Nuclide names: the mass number is markup, so it is set in the same face as the
+   symbol (the display face has no superscript 4-9). Lifted without opening up
+   the line. */
+.nuclide { white-space: nowrap; font-variant-numeric: lining-nums; }
+.nuclide sup { font-size: 0.64em; line-height: 0; vertical-align: 0; position: relative; top: -0.58em; margin-right: 0.03em; }
+.tag .nuclide { font-family: var(--display); font-weight: 600; }
 :focus-visible { outline: 3px solid var(--yellow); outline-offset: 1px; }
 ::selection { background: var(--yellow); color: #141414; }
 
@@ -170,23 +176,8 @@ h3 { font: 700 12px/1.2 var(--display); letter-spacing: 0.08em; text-transform: 
 
 /* ---- overview ------------------------------------------------------------- */
 
-.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); gap: 32px; align-items: start; }
-.hero .lead { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 32px; align-items: start; }
 .hero .intro { padding-top: 4px; }
-h2.nocaps { text-transform: none; letter-spacing: 0; font-size: 16px; }
-.prows > :first-child { border-top: 0; }
-.prow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 16px; padding: 10px 16px; border-top: 1px solid var(--hair); text-decoration: none; color: inherit; align-items: baseline; }
-.prow:hover { background: var(--sunk); }
-.prow:hover .what { text-decoration: underline; text-decoration-color: var(--acc); text-decoration-thickness: 2px; }
-.prow .what { font-weight: 600; min-width: 0; }
-.prow .what .nuc { font: 700 13px/1.2 var(--display); margin-right: 2px; }
-.prow .v { font-size: 14px; white-space: nowrap; text-align: right; }
-.prow .meta { font-size: 12px; color: var(--muted); }
-.prow .n { font: 600 11.5px var(--display); color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
-.pstate { padding: 7px 16px 5px; background: var(--sunk); border-top: 2px solid var(--rule); font: 700 12px/1.2 var(--display); color: var(--ink-2); }
-.pstate:first-child { border-top: 0; }
-.nz-cell.pv rect { fill: var(--ink); }
-.nz-cell.pv text { fill: var(--paper); }
 
 /* ---- footer statistics ----------------------------------------------------- */
 
