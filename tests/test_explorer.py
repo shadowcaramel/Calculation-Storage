@@ -301,6 +301,8 @@ class TestInBrowser:
             base = page_path.as_uri()
             page.goto(base)
             assert page.locator("h1").inner_text().lower() == "modern library"
+            assert page.locator(".brand svg.mark rect").count() == 10
+            assert (page_path.parent / "explorer" / "logo.svg").is_file()
             assert page.locator("#main .panel-h h2").first.inner_text().lower() == "results at a glance"
             assert page.locator("table.matrix tbody tr").count() == 2
             assert page.locator("table.matrix a.mx").count() == 2

@@ -98,11 +98,7 @@ body[data-lib="papers"] a { text-decoration-color: var(--yellow); }
 .app { display: grid; grid-template-rows: auto 1fr; height: 100%; }
 .top { display: flex; align-items: stretch; gap: 0; background: var(--bar); color: var(--on-bar); min-height: 52px; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 12px; flex: 0 0 var(--rail); box-sizing: border-box; padding: 0 20px; border-right: 2px solid var(--on-bar); font: 800 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; color: var(--on-bar); text-decoration: none; }
-.brand .mark { display: inline-flex; align-items: center; gap: 3px; }
-.brand .mark i { display: block; width: 14px; height: 14px; }
-.brand .mark .c { background: var(--blue); border-radius: 50%; }
-.brand .mark .s { background: var(--red); }
-.brand .mark .t { background: var(--yellow); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.brand .mark { display: block; flex: none; width: 26px; height: 26px; }
 .libs { display: flex; align-items: stretch; }
 .libs button { border: 0; border-right: 2px solid var(--on-bar); background: transparent; color: var(--on-bar); padding: 0 22px; cursor: pointer; font: 700 12px/1 var(--display); letter-spacing: 0.1em; text-transform: uppercase; }
 .libs button:hover { background: rgba(255, 255, 255, 0.08); }

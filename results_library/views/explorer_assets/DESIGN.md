@@ -67,9 +67,20 @@ All faces are vendored under `app/fonts/` (SIL Open Font License), because
 the page opens over `file://` with no network. Montserrat comes from TeX Live;
 it covers Cyrillic, so the Russian captions in papers render in the same face.
 
+## Logo
+
+A staircase of square cells, the shape of the light-nuclei corner of the Z–N
+chart. Seven cells are ink; three carry the primaries: blue (Modern) at the
+bottom, red (Legacy) in the middle, yellow (Papers) at the top. Ink cells are
+solid, never outlined, so the mark still reads at 16 px; they turn paper
+coloured on the ink top bar and in a dark browser tab. The top bar draws it
+inline with `currentColor`; `app/logo.svg` is the tab icon and switches by
+`prefers-color-scheme`. Chosen from six concepts on 2026-10-17; the CS
+monogram is the runner-up.
+
 ## Components
 
-* **Top bar**: ink band. The wordmark has a circle, a square and a triangle.
+* **Top bar**: ink band. The brand block starts with the logo (below) at 26 px.
   The tabs (Modern, Legacy, Papers) are flat blocks; the active one fills with
   its colour. The brand block is as wide as the rail (`--rail`), so
   the line after it continues the rail's border.
