@@ -530,7 +530,7 @@
     return f.hay;
   }
   function textMatch(f, q) {
-    var terms = String(q || "").toLowerCase().replace(/−/g, "-").split(/\s+/).filter(Boolean);
+    var terms = String(q || "").toLowerCase().replace(/⁺/g, "+").replace(/[⁻−]/g, "-").split(/\s+/).filter(Boolean);
     var hay = haystack(f);
     return terms.every(function (t) { return hay.indexOf(t) >= 0; });
   }
