@@ -229,11 +229,14 @@
     if (!cells.length) return "";
     var maxZ = 1, maxN = 1;
     cells.forEach(function (n) { var c = CAT.nuclei[n].chart; maxZ = Math.max(maxZ, c.Z); maxN = Math.max(maxN, c.N); });
-    var cell = big ? 54 : 30, pad = big ? 34 : 20, top = big ? 6 : 2;
+    // The small chart keeps its labels near the rail's text size, so its cells
+    // fill the rail with thin gaps.
+    var cell = big ? 54 : 30, pad = big ? 34 : 15, top = big ? 6 : 2, gap = big ? 2 : 1.5;
     var W = pad + maxN * cell + 6, H = top + maxZ * cell + pad + (big ? 14 : 4);
     var s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Chart of the nuclei in the library, proton number Z against neutron number N">';
-    for (var z = 1; z <= maxZ; z++) s += '<text class="nz-axis" x="' + (pad - 7) + '" y="' + (top + (maxZ - z) * cell + cell / 2 + 4) + '" text-anchor="end">' + z + "</text>";
-    for (var n = 1; n <= maxN; n++) s += '<text class="nz-axis" x="' + (pad + (n - 1) * cell + cell / 2) + '" y="' + (top + maxZ * cell + 14) + '" text-anchor="middle">' + n + "</text>";
+    var axis = big ? "" : ' font-size="11"';
+    for (var z = 1; z <= maxZ; z++) s += '<text class="nz-axis"' + axis + ' x="' + (pad - (big ? 7 : 4)) + '" y="' + (top + (maxZ - z) * cell + cell / 2 + 4) + '" text-anchor="end">' + z + "</text>";
+    for (var n = 1; n <= maxN; n++) s += '<text class="nz-axis"' + axis + ' x="' + (pad + (n - 1) * cell + cell / 2) + '" y="' + (top + maxZ * cell + (big ? 14 : 13)) + '" text-anchor="middle">' + n + "</text>";
     if (big) {
       s += '<text class="nz-title" x="' + (pad + maxN * cell) + '" y="' + (top + maxZ * cell + 30) + '" text-anchor="end">N, NEUTRONS →</text>';
       // Read bottom to top, so the arrow points up the Z axis.
@@ -244,10 +247,10 @@
       var has = !!counts[name], cur = state.nuc === name && state.lib === lib;
       var open = has ? '<a href="' + route(lib, "n", name) + '" aria-label="' + esc(name) + ", " + plural(counts[name], "result", "results") + '">' : "";
       s += open + '<g class="nz-cell' + (has ? " has" : " empty") + (cur ? " cur" : "") + '">';
-      s += '<rect x="' + (x + 2) + '" y="' + (y + 2) + '" width="' + (cell - 4) + '" height="' + (cell - 4) + '"/>';
-      if (has && !cur) s += '<rect class="flag" x="' + (x + 2) + '" y="' + (y + 2) + '" width="' + (big ? 8 : 5) + '" height="' + (big ? 8 : 5) + '"/>';
-      s += '<text x="' + (x + cell / 2) + '" y="' + (y + cell * (big ? 0.5 : 0.64)) + '" text-anchor="middle" font-size="' + (big ? 16 : 10.5) + '" font-weight="700">';
-      s += '<tspan font-size="' + (big ? 10 : 7) + '" dy="-' + (big ? 5 : 3.5) + '">' + c.A + '</tspan><tspan dy="' + (big ? 5 : 3.5) + '">' + esc(c.symbol) + "</tspan></text>";
+      s += '<rect x="' + (x + gap) + '" y="' + (y + gap) + '" width="' + (cell - 2 * gap) + '" height="' + (cell - 2 * gap) + '"/>';
+      if (has && !cur) s += '<rect class="flag" x="' + (x + gap) + '" y="' + (y + gap) + '" width="' + (big ? 8 : 5) + '" height="' + (big ? 8 : 5) + '"/>';
+      s += '<text x="' + (x + cell / 2) + '" y="' + (y + cell * (big ? 0.5 : 0.69)) + '" text-anchor="middle" font-size="' + (big ? 16 : 13.5) + '" font-weight="700">';
+      s += '<tspan font-size="' + (big ? 10 : 8.5) + '" dy="-' + (big ? 5 : 4.5) + '">' + c.A + '</tspan><tspan dy="' + (big ? 5 : 4.5) + '">' + esc(c.symbol) + "</tspan></text>";
       if (big) s += '<text class="cnt" x="' + (x + cell / 2) + '" y="' + (y + cell * 0.82) + '" text-anchor="middle" font-size="10.5">' + (counts[name] || "–") + "</text>";
       s += "</g>" + (has ? "</a>" : "");
     });
@@ -323,8 +326,7 @@
       ? "Results from the old TensorFlow cluster scripts, kept apart from the current pipeline."
       : "Results from the current ensemble pipeline.";
     var h = '<div class="stack"><div class="hero"><div class="intro"><div class="eyebrow">Library</div><h1 class="caps" style="margin-top:8px">' + libName(state.lib) + ' library</h1><p class="lede">' + lede + " Pick a nucleus on the chart or in the list.</p>";
-    var other = state.lib === "legacy" ? "modern" : "legacy";
-    h += '<div class="btnrow" style="margin-top:20px"><a class="btn" href="' + route(other) + '">' + libName(other) + " library</a>" + (PAPERS.length ? '<a class="btn" href="#papers">Papers</a>' : "") + "</div></div>";
+    h += "</div>";
     if (!rows.length) return ($("main").innerHTML = h + '</div><p class="empty">No ' + state.lib + " results yet.</p></div>");
     h += '<div class="panel"><div class="panel-h"><h2>Chart of nuclei</h2><span class="hint">The number in each cell is how many results it has.</span></div><div class="panel-b nzmap">' + nucleiMap(state.lib, true) + "</div></div></div>";
     var recent = fams.slice().sort(function (a, b) { return String(b.latest).localeCompare(String(a.latest)); }).slice(0, 8);
