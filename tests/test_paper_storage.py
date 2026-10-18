@@ -309,6 +309,25 @@ class TestExplorerView:
         _root, derived = self._read(tmp_path / "b", median=-32.5, compare="derived", note="minus threshold")
         assert derived.explorer["papers"][0]["materials"][0]["checks"][0]["state"] == "derived"
 
+    def test_storage_notes_reach_the_explorer(self, tmp_path):
+        library, _ = self._read(tmp_path, median=-32.034)
+        manifest = json.loads((library / "papers.json").read_text(encoding="utf-8"))
+        paper = manifest["papers"][0]
+        paper["notes"] = ["Table 2 prints 1.930 (2), read as 1.93(2)."]
+        paper["materials"][0]["note"] = "Row 36 repeats row 32."
+        paper["materials"].append({"id": "fig6", "kind": "plot", "title": "Fig. 6", "note": "Labels differ from the RU print."})
+        (library / "papers.json").write_text(json.dumps(manifest), encoding="utf-8")
+        from paper_storage.build import read_papers
+
+        view = read_papers(library).explorer["papers"][0]
+        assert view["notes"] == ["Table 2 prints 1.930 (2), read as 1.93(2)."]
+        assert [m["notes"] for m in view["materials"]] == [["Row 36 repeats row 32."], ["Labels differ from the RU print."]]
+
+    def test_notes_are_optional(self, tmp_path):
+        _root, result = self._read(tmp_path, median=-32.034)
+        view = result.explorer["papers"][0]
+        assert view["notes"] == [] and view["materials"][0]["notes"] == []
+
     def test_missing_result_is_flagged(self, tmp_path):
         from paper_storage.build import read_papers
 

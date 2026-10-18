@@ -358,6 +358,39 @@ class TestInBrowser:
             browser.close()
         assert errors == []
 
+    def test_paper_shows_its_storage_notes(self, library):
+        sync_api = pytest.importorskip("playwright.sync_api")
+        frame, _ = build_catalog(library)
+        material = {
+            "id": "fig6", "kind": "plot", "title": "Fig. 6", "image": "", "file": "", "latex": "", "latex_path": "",
+            "pdf_page": None, "parsed": "", "caption": "", "columns": [], "rows": [], "checks": [],
+            "notes": ["Fig. 6 labels differ from the Russian print."],
+        }
+        paper = {
+            "id": "p1", "bibkey": "", "title": "T", "authors": "", "year": "2024", "year_label": "2024", "sort": "2024",
+            "journal": "", "volume": "", "pages": "", "doi": "", "pdf": "", "has_citation": False,
+            "nuclei": [], "potentials": [], "results": [], "materials": [material], "loose": [],
+            "notes": ["Table 2 prints 1.930 (2) where other papers print 1.93(2)."],
+        }
+        page_path = build_explorer(library, frame, papers={"papers": [paper], "issues": []})
+        with sync_api.sync_playwright() as pw:
+            try:
+                browser = pw.chromium.launch(executable_path=os.environ.get("EXPLORER_TEST_CHROMIUM") or None)
+            except Exception as exc:  # no browser installed for this playwright
+                pytest.skip(f"no Chromium for Playwright: {exc}")
+            page = browser.new_page()
+            errors: list[str] = []
+            page.on("pageerror", lambda exc: errors.append(str(exc)))
+            base = page_path.as_uri()
+            page.goto(base + "#papers")
+            assert page.locator(".paperrow .tag.notes").inner_text() == "2 storage notes"
+            page.goto(base + "#papers/p/p1")
+            notes = page.locator(".snotes .note").all_inner_texts()
+            assert notes == paper["notes"] + material["notes"]
+            assert page.locator("#mat-fig6 .snotes").count() == 1
+            browser.close()
+        assert errors == []
+
     def test_search_filters_and_keeps_its_view_in_the_link(self, library):
         sync_api = pytest.importorskip("playwright.sync_api")
         frame, _ = build_catalog(library)
