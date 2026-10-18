@@ -1043,7 +1043,7 @@
       var month = p.year_label && p.year_label !== p.year ? p.year_label.replace(p.year, "").trim() : "";
       h += '<a class="paperrow" href="' + paperRoute(p.id) + '"><div class="yr">' + esc(p.year || "–") + (month ? "<small>" + esc(month) + "</small>" : "") + "</div>";
       h += '<div><div class="t">' + esc(p.title) + '</div><div class="who">' + esc(authors(p.authors)) + (p.journal ? ' · <i>' + esc(p.journal) + "</i>" : "") + "</div>";
-      h += '<div class="chips">' + p.nuclei.map(function (n) { return '<span class="tag">' + nucHtml(n) + "</span>"; }).join("") + p.potentials.map(function (n) { return '<span class="tag">' + esc(n) + "</span>"; }).join("") + "</div></div>";
+      h += '<div class="chips">' + p.nuclei.map(function (n) { return '<span class="tag">' + nucHtml(n) + "</span>"; }).join("") + p.potentials.map(function (n) { return '<span class="tag">' + esc(n) + "</span>"; }).join("") + (noteCount(p) ? '<span class="tag notes">' + noteCount(p) + " storage note" + (noteCount(p) > 1 ? "s" : "") + "</span>" : "") + "</div></div>";
       h += '<div class="tally"><span><b>' + p.materials.length + "</b><i>materials</i></span><span><b>" + p.results.length + "</b><i>results</i></span><span><b>" + t.ok + "</b><i>agree</i></span>" + '<span class="' + (t.bad ? "bad" : "") + '"><b>' + t.bad + "</b><i>problems</i></span></div></a>";
     });
     h += "</div></div></div>";
@@ -1058,6 +1058,15 @@
     return hit ? hit.state : "linked";
   }
 
+  // Storage notes are the curator's remarks (an inconsistency, a misprint), not text printed in the paper.
+  function storageNotes(notes) {
+    if (!notes || !notes.length) return "";
+    return '<div class="snotes"><div class="eyebrow">Storage note' + (notes.length > 1 ? "s" : "") + "</div>" + notes.map(function (n) { return '<p class="note">' + esc(n) + "</p>"; }).join("") + "</div>";
+  }
+  function noteCount(p) {
+    return (p.notes || []).length + p.materials.reduce(function (a, m) { return a + (m.notes || []).length; }, 0);
+  }
+
   function materialPanel(p, m) {
     var o = '<section class="panel material" id="mat-' + esc(m.id) + '"><div class="panel-h"><h2>' + esc(m.title) + '</h2><span class="kind">' + (m.kind === "plot" ? "figure" : "table") + '</span><span class="spacer"></span><div class="btnrow">';
     if (m.pdf_page && p.pdf) o += '<a class="btn" href="' + href(p.pdf) + "#page=" + m.pdf_page + '">PDF p. ' + m.pdf_page + "</a>";
@@ -1066,6 +1075,7 @@
     o += "</div></div>";
     if (m.image) o += '<div class="panel-b figure"><img src="' + href(m.image) + '" alt="' + esc(m.title) + '" loading="lazy" data-pimg="' + esc(m.id) + '"></div>';
     if (m.caption) o += '<div class="panel-b"><p class="caption">' + esc(m.caption) + "</p></div>";
+    if (m.notes && m.notes.length) o += '<div class="panel-b">' + storageNotes(m.notes) + "</div>";
     if (m.rows.length) {
       o += '<div class="tablewrap"><table class="pivot grid"><thead><tr>' + m.columns.map(function (c) { return "<th>" + tex(c.latex, c.text) + "</th>"; }).join("") + "</tr></thead><tbody>";
       m.rows.forEach(function (row, ri) {
@@ -1105,6 +1115,7 @@
     if (p.year_label) h += " (" + esc(p.year_label) + ")";
     h += "</p>";
     if (!p.has_citation) h += '<p class="hint">No bibliography entry was read for this paper, so the title is the one in papers.json. Pass <code>--bibliography</code> to show the citation.</p>';
+    h += storageNotes(p.notes);
     h += '<div class="btnrow" style="margin-top:14px">' + (p.doi ? '<a class="btn" href="https://doi.org/' + esc(p.doi) + '">DOI ' + esc(p.doi) + "</a>" : "") + (p.pdf ? '<a class="btn primary" href="' + href(p.pdf) + '">Open PDF</a>' : "") + "</div></div>";
     h += '<div class="tally" style="align-self:start"><span><b>' + p.materials.length + "</b><i>materials</i></span><span><b>" + p.results.length + "</b><i>results</i></span><span><b>" + t.ok + "</b><i>agree</i></span><span><b>" + t.derived + '</b><i>derived</i></span><span class="' + (t.bad ? "bad" : "") + '"><b>' + t.bad + "</b><i>problems</i></span></div>";
     var own = ISSUES.filter(function (i) { return i.paper === p.id; });

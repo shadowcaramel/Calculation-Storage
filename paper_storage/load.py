@@ -43,6 +43,7 @@ class Material:
     pdf_page: Optional[int] = None
     parsed: str = ""
     parsed_explicit: bool = False
+    notes: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -57,6 +58,7 @@ class Paper:
     year: str = ""
     materials: List[Material] = field(default_factory=list)
     links: List[PaperLink] = field(default_factory=list)
+    notes: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -204,6 +206,7 @@ def _paper(item: Any) -> Optional[Paper]:
         year=str(item.get("year") or "").strip(),
         materials=materials,
         links=links,
+        notes=_notes(item),
     )
 
 
@@ -234,7 +237,16 @@ def _material(item: Any) -> Optional[Material]:
         pdf_page=pdf_page,
         parsed=parsed,
         parsed_explicit=explicit,
+        notes=_notes(item),
     )
+
+
+def _notes(item: Mapping) -> List[str]:
+    """Optional storage notes: ``note`` (one string) and ``notes`` (a list), in that order."""
+    raw = [item.get("note")]
+    extra = item.get("notes")
+    raw.extend(extra if isinstance(extra, list) else [extra])
+    return [text for text in (str(n).strip() for n in raw if isinstance(n, str)) if text]
 
 
 def _link(item: Any) -> Optional[PaperLink]:

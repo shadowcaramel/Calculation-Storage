@@ -110,6 +110,10 @@ monogram is the runner-up.
   are bars); words match names, states as typed (5/2+), potentials,
   selection sets, tags and notes. Each count is what that value would leave.
   The view lives in the hash, so "Copy link to this view" reopens it.
+* **Storage notes**: remarks the curator keeps in `papers.json` (a misprint,
+  a value that differs between papers), never text printed in the paper.
+  Paper notes sit under the citation, material notes under the caption; each
+  is a quiet block with a yellow rule. The paper list counts them in a tag.
 * **Nuclide names**: the mass number is a `<sup>` in the same face as the
   symbol, never a Unicode superscript (the display face lacks ⁴–⁹).
 * **Sortable headings**: an arrow after the label; the active one is

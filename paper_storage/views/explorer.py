@@ -88,6 +88,7 @@ def _paper(
         "results": sorted({link.result for link in paper.links if link.result}),
         "materials": materials,
         "loose": loose,
+        "notes": paper.notes,
     }
 
 
@@ -117,6 +118,7 @@ def _material(
         "pdf_page": material.pdf_page,
         "parsed": material.parsed if grid is not None else "",
         "caption": grid.caption if grid else "",
+        "notes": material.notes,
         "columns": [],
         "rows": [],
         "checks": [_check(library_root, link, grid) for link in links],
